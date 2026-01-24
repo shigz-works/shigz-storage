@@ -138,6 +138,27 @@ function speak(text) {
 }
 
 /* 🔑 EXPOSE TO CONSOLE */
+function testMouth() {
+  if (!faceMesh) {
+    console.warn("❌ faceMesh not ready yet");
+    return;
+  }
+
+  // Reset first
+  Object.values(faceMesh.morphTargetDictionary).forEach((i) => {
+    faceMesh.morphTargetInfluences[i] = 0;
+  });
+
+  const index = faceMesh.morphTargetDictionary["Fcl_MTH_A"];
+  if (index === undefined) {
+    console.error("❌ Fcl_MTH_A not found on this mesh");
+    return;
+  }
+
+  faceMesh.morphTargetInfluences[index] = 1;
+  console.log("👄 Mouth opened (Fcl_MTH_A)");
+}
+
 window.speak = speak;
 
 /* =========================
@@ -149,4 +170,5 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+
 
