@@ -190,10 +190,13 @@ function setEmotion(emotion) {
 }
 
 /* =========================
-   CLOUD TTS AUDIO PLAYER
+   CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
+audioPlayer.preload = "auto";
+audioPlayer.playsInline = true;
+audioPlayer.muted = false;
 
 audioPlayer.onplay = () => {
   console.log("🔊 Audio playing");
@@ -204,11 +207,16 @@ audioPlayer.onended = () => {
   console.log("🔇 Audio ended");
   stopLipSync();
 
-  // ⏳ Delay before neutral + notify Storyline
   setTimeout(() => {
     setEmotion("neutral");
     notifyStorylineSpeechEnded();
   }, 600);
+};
+
+audioPlayer.onerror = (e) => {
+  console.error("❌ Audio element error:", e);
+  stopLipSync();
+  notifyStorylineSpeechEnded();
 };
 
 /* =========================
@@ -241,7 +249,19 @@ async function sendToAI(text) {
 
     if (data.audio) {
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
-      audioPlayer.play();
+
+      const playPromise = audioPlayer.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log("▶️ Audio playback started");
+          })
+          .catch(err => {
+            console.error("🚫 Audio playback blocked:", err);
+            stopLipSync();
+            notifyStorylineSpeechEnded();
+          });
+      }
     }
   } catch (err) {
     console.error("❌ AI error:", err);
