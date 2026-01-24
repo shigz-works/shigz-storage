@@ -32,7 +32,6 @@ document.body.appendChild(renderer.domElement);
    LIGHTING
 ========================= */
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.6));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
@@ -56,7 +55,7 @@ loader.load("./avatar1.glb", (gltf) => {
       obj.material.needsUpdate = true;
     }
 
-    // 🔑 collect all mouth-capable meshes
+    // Collect ALL meshes that have mouth morphs
     if (
       obj.morphTargetDictionary &&
       obj.morphTargetDictionary["Fcl_MTH_A"] !== undefined
@@ -79,7 +78,7 @@ window.addEventListener("resize", () => {
 });
 
 /* =========================
-   LIP SYNC SYSTEM
+   LIP SYNC (MOUTH ONLY)
 ========================= */
 const mouthShapes = [
   "Fcl_MTH_A",
@@ -105,6 +104,7 @@ function startLipSync() {
 
   talkingInterval = setInterval(() => {
     resetMouth();
+
     const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
     mouthMeshes.forEach((mesh) => {
       const i = mesh.morphTargetDictionary[shape];
@@ -119,7 +119,7 @@ function stopLipSync() {
 }
 
 /* =========================
-   EMOTION SYSTEM
+   EMOTION SYSTEM (PERSISTENT)
 ========================= */
 const emotionMap = {
   neutral: "Fcl_ALL_Neutral",
@@ -129,13 +129,7 @@ const emotionMap = {
   surprised: "Fcl_ALL_Surprised"
 };
 
-function resetFace() {
-  mouthMeshes.forEach((mesh) => {
-    Object.values(mesh.morphTargetDictionary).forEach((i) => {
-      mesh.morphTargetInfluences[i] = 0;
-    });
-  });
-}
+let currentEmotion = "neutral";
 
 function setEmotion(emotion) {
   const morphName = emotionMap[emotion];
@@ -144,14 +138,21 @@ function setEmotion(emotion) {
     return;
   }
 
-  resetFace();
+  currentEmotion = emotion;
 
   mouthMeshes.forEach((mesh) => {
-    const i = mesh.morphTargetDictionary[morphName];
-    if (i !== undefined) mesh.morphTargetInfluences[i] = 1;
+    // Reset ONLY emotion morphs
+    Object.values(emotionMap).forEach((emoMorph) => {
+      const i = mesh.morphTargetDictionary[emoMorph];
+      if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
+    });
+
+    // Apply selected emotion
+    const index = mesh.morphTargetDictionary[morphName];
+    if (index !== undefined) mesh.morphTargetInfluences[index] = 1;
   });
 
-  console.log(`😊 Emotion set: ${emotion}`);
+  console.log(`😊 Emotion set (persistent): ${emotion}`);
 }
 
 /* =========================
@@ -178,7 +179,7 @@ function speak(text) {
 window.speak = speak;
 window.setEmotion = setEmotion;
 window.testMouth = () => {
-  resetFace();
+  resetMouth();
   mouthMeshes.forEach((mesh) => {
     const i = mesh.morphTargetDictionary["Fcl_MTH_A"];
     if (i !== undefined) mesh.morphTargetInfluences[i] = 1;
