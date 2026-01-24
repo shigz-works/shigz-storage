@@ -32,7 +32,6 @@ document.body.appendChild(renderer.domElement);
    LIGHTING
 ========================= */
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.6));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
@@ -41,7 +40,7 @@ scene.add(dirLight);
    AVATAR
 ========================= */
 let avatarRoot = null;
-let faceMesh = null;
+let mouthMeshes = []; // 🔥 IMPORTANT
 
 const loader = new GLTFLoader();
 loader.load("./avatar1.glb", (gltf) => {
@@ -49,21 +48,24 @@ loader.load("./avatar1.glb", (gltf) => {
   scene.add(avatarRoot);
 
   avatarRoot.traverse((obj) => {
-    if (obj.isMesh) {
-      obj.castShadow = true;
-      obj.receiveShadow = true;
+    if (!obj.isMesh) return;
 
-      if (obj.material?.map) {
-        obj.material.map.colorSpace = THREE.SRGBColorSpace;
-        obj.material.needsUpdate = true;
-      }
+    if (obj.material?.map) {
+      obj.material.map.colorSpace = THREE.SRGBColorSpace;
+      obj.material.needsUpdate = true;
+    }
 
-      if (obj.morphTargetDictionary && !faceMesh) {
-        faceMesh = obj;
-        console.log("✅ Morph targets:", obj.morphTargetDictionary);
-      }
+    // 🔑 COLLECT ALL MOUTH MESHES
+    if (
+      obj.morphTargetDictionary &&
+      obj.morphTargetDictionary["Fcl_MTH_A"] !== undefined
+    ) {
+      mouthMeshes.push(obj);
+      console.log("👄 Mouth mesh found:", obj.name);
     }
   });
+
+  console.log(`✅ Total mouth meshes: ${mouthMeshes.length}`);
 });
 
 /* =========================
@@ -89,21 +91,25 @@ const mouthShapes = [
 let talkingInterval = null;
 
 function resetMouth() {
-  if (!faceMesh) return;
-  mouthShapes.forEach((name) => {
-    const i = faceMesh.morphTargetDictionary[name];
-    if (i !== undefined) faceMesh.morphTargetInfluences[i] = 0;
+  mouthMeshes.forEach((mesh) => {
+    mouthShapes.forEach((name) => {
+      const i = mesh.morphTargetDictionary[name];
+      if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
+    });
   });
 }
 
 function startLipSync() {
-  if (!faceMesh) return;
+  if (mouthMeshes.length === 0) return;
 
   talkingInterval = setInterval(() => {
     resetMouth();
+
     const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-    const i = faceMesh.morphTargetDictionary[shape];
-    if (i !== undefined) faceMesh.morphTargetInfluences[i] = 0.7;
+    mouthMeshes.forEach((mesh) => {
+      const i = mesh.morphTargetDictionary[shape];
+      if (i !== undefined) mesh.morphTargetInfluences[i] = 0.8;
+    });
   }, 120);
 }
 
@@ -113,7 +119,7 @@ function stopLipSync() {
 }
 
 /* =========================
-   WEB SPEECH API (TTS)
+   WEB SPEECH API
 ========================= */
 function speak(text) {
   if (!window.speechSynthesis) {
@@ -124,12 +130,8 @@ function speak(text) {
   speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
-  const voices = speechSynthesis.getVoices();
-  utterance.voice = voices.find(v => v.lang.startsWith("en")) || voices[0];
-
   utterance.rate = 1;
   utterance.pitch = 1;
-  utterance.volume = 1;
 
   utterance.onstart = startLipSync;
   utterance.onend = stopLipSync;
@@ -137,29 +139,26 @@ function speak(text) {
   speechSynthesis.speak(utterance);
 }
 
-/* 🔑 EXPOSE TO CONSOLE */
+/* =========================
+   CONSOLE TEST
+========================= */
 function testMouth() {
-  if (!faceMesh) {
-    console.warn("❌ faceMesh not ready yet");
+  if (mouthMeshes.length === 0) {
+    console.warn("❌ No mouth meshes found yet");
     return;
   }
 
-  // Reset first
-  Object.values(faceMesh.morphTargetDictionary).forEach((i) => {
-    faceMesh.morphTargetInfluences[i] = 0;
+  resetMouth();
+  mouthMeshes.forEach((mesh) => {
+    const i = mesh.morphTargetDictionary["Fcl_MTH_A"];
+    if (i !== undefined) mesh.morphTargetInfluences[i] = 1;
   });
 
-  const index = faceMesh.morphTargetDictionary["Fcl_MTH_A"];
-  if (index === undefined) {
-    console.error("❌ Fcl_MTH_A not found on this mesh");
-    return;
-  }
-
-  faceMesh.morphTargetInfluences[index] = 1;
-  console.log("👄 Mouth opened (Fcl_MTH_A)");
+  console.log("👄 Mouth forced open");
 }
 
 window.speak = speak;
+window.testMouth = testMouth;
 
 /* =========================
    RENDER LOOP
@@ -170,5 +169,3 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-
-
