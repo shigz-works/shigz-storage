@@ -116,7 +116,7 @@ window.addEventListener("resize", () => {
 ========================= */
 function setupBlinking() {
   function blink() {
-    blinkMeshes.forEach(mesh => {
+    blinkMeshes.forEach((mesh) => {
       const d = mesh.morphTargetDictionary;
       if (d["Fcl_EYE_Close"] !== undefined) {
         mesh.morphTargetInfluences[d["Fcl_EYE_Close"]] = 1;
@@ -129,8 +129,8 @@ function setupBlinking() {
     });
 
     setTimeout(() => {
-      blinkMeshes.forEach(mesh => {
-        Object.keys(mesh.morphTargetDictionary).forEach(k => {
+      blinkMeshes.forEach((mesh) => {
+        Object.keys(mesh.morphTargetDictionary).forEach((k) => {
           if (k.includes("EYE_Close")) {
             mesh.morphTargetInfluences[
               mesh.morphTargetDictionary[k]
@@ -160,8 +160,8 @@ const mouthShapes = [
 let talkingInterval = null;
 
 function resetMouth() {
-  mouthMeshes.forEach(mesh => {
-    mouthShapes.forEach(name => {
+  mouthMeshes.forEach((mesh) => {
+    mouthShapes.forEach((name) => {
       const i = mesh.morphTargetDictionary[name];
       if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
     });
@@ -172,7 +172,7 @@ function startLipSync() {
   talkingInterval = setInterval(() => {
     resetMouth();
     const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-    mouthMeshes.forEach(mesh => {
+    mouthMeshes.forEach((mesh) => {
       const i = mesh.morphTargetDictionary[shape];
       if (i !== undefined) mesh.morphTargetInfluences[i] = 0.8;
     });
@@ -198,7 +198,7 @@ const emotionMap = {
 function applyEmotionGesture(emotion) {
   if (!avatarRoot) return;
 
-  avatarRoot.traverse(bone => {
+  avatarRoot.traverse((bone) => {
     if (!bone.isBone) return;
 
     if (emotion === "happy" && bone.name.includes("Spine"))
@@ -210,8 +210,7 @@ function applyEmotionGesture(emotion) {
     if (emotion === "angry" && bone.name.includes("Shoulder"))
       bone.rotation.z *= 1.1;
 
-    if (emotion === "neutral")
-      bone.rotation.set(0, 0, 0);
+    if (emotion === "neutral") bone.rotation.set(0, 0, 0);
   });
 }
 
@@ -219,8 +218,8 @@ function setEmotion(emotion) {
   const morph = emotionMap[emotion];
   if (!morph) return;
 
-  mouthMeshes.forEach(mesh => {
-    Object.values(emotionMap).forEach(e => {
+  mouthMeshes.forEach((mesh) => {
+    Object.values(emotionMap).forEach((e) => {
       const i = mesh.morphTargetDictionary[e];
       if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
     });
@@ -259,13 +258,32 @@ async function sendToAI(text) {
 }
 
 /* =========================
-   STORYLINE API
+   STORYLINE MESSAGE BRIDGE
+========================= */
+window.addEventListener("message", (event) => {
+  if (!event.data || !event.data.type) return;
+
+  if (event.data.type === "AI_MESSAGE") {
+    console.log("📩 Message from Storyline:", event.data.text);
+    sendToAI(event.data.text);
+  }
+
+  if (event.data.type === "SET_EMOTION") {
+    setEmotion(event.data.emotion);
+  }
+
+  if (event.data.type === "SPEAK") {
+    speak(event.data.text);
+  }
+});
+
+/* =========================
+   STORYLINE API (OPTIONAL)
 ========================= */
 window.avatar = {
   speak,
   setEmotion,
-  sendToAI,
-  reset: () => setEmotion("neutral")
+  sendToAI
 };
 
 /* =========================
