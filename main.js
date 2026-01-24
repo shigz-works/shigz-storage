@@ -2,6 +2,12 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
 /* =========================
+   CONFIG
+========================= */
+// 🔁 CHANGE THIS TO YOUR REAL CLOUD RUN URL
+const AI_ENDPOINT = "https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
+
+/* =========================
    SCENE
 ========================= */
 const scene = new THREE.Scene();
@@ -55,7 +61,7 @@ loader.load("./avatar1.glb", (gltf) => {
       obj.material.needsUpdate = true;
     }
 
-    // Collect ALL meshes that have mouth morphs
+    // Collect ALL meshes with mouth morphs
     if (
       obj.morphTargetDictionary &&
       obj.morphTargetDictionary["Fcl_MTH_A"] !== undefined
@@ -104,7 +110,6 @@ function startLipSync() {
 
   talkingInterval = setInterval(() => {
     resetMouth();
-
     const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
     mouthMeshes.forEach((mesh) => {
       const i = mesh.morphTargetDictionary[shape];
@@ -141,22 +146,23 @@ function setEmotion(emotion) {
   currentEmotion = emotion;
 
   mouthMeshes.forEach((mesh) => {
-    // Reset ONLY emotion morphs
+    // reset only emotion morphs
     Object.values(emotionMap).forEach((emoMorph) => {
       const i = mesh.morphTargetDictionary[emoMorph];
       if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
     });
 
-    // Apply selected emotion
     const index = mesh.morphTargetDictionary[morphName];
-    if (index !== undefined) mesh.morphTargetInfluences[index] = 1;
+    if (index !== undefined) {
+      mesh.morphTargetInfluences[index] = 1;
+    }
   });
 
-  console.log(`😊 Emotion set (persistent): ${emotion}`);
+  console.log(`😊 Emotion set: ${emotion}`);
 }
 
 /* =========================
-   WEB SPEECH API
+   SPEECH
 ========================= */
 function speak(text) {
   if (!window.speechSynthesis) return;
@@ -174,10 +180,31 @@ function speak(text) {
 }
 
 /* =========================
+   AI BACKEND CONNECTOR
+========================= */
+async function sendToAI(text) {
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+
+    const data = await res.json();
+
+    if (data.emotion) setEmotion(data.emotion);
+    if (data.reply) speak(data.reply);
+  } catch (err) {
+    console.error("❌ AI error:", err);
+  }
+}
+
+/* =========================
    CONSOLE ACCESS
 ========================= */
 window.speak = speak;
 window.setEmotion = setEmotion;
+window.sendToAI = sendToAI;
 window.testMouth = () => {
   resetMouth();
   mouthMeshes.forEach((mesh) => {
