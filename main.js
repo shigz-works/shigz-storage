@@ -58,14 +58,18 @@ dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
 /* =========================
-   IDLE POSE
+   IDLE POSE (NO T-POSE)
 ========================= */
 function applyIdlePose(model) {
   model.traverse((obj) => {
     if (!obj.isBone) return;
-    if (obj.name.includes("UpperArm"))
+
+    if (obj.name.includes("UpperArm")) {
       obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
-    if (obj.name.includes("LowerArm")) obj.rotation.z = 0.1;
+    }
+    if (obj.name.includes("LowerArm")) {
+      obj.rotation.z = 0.1;
+    }
   });
 }
 
@@ -91,14 +95,16 @@ loader.load("./avatar1.glb", (gltf) => {
       obj.material.needsUpdate = true;
     }
 
-    if (obj.morphTargetDictionary?.Fcl_MTH_A !== undefined)
+    if (obj.morphTargetDictionary?.Fcl_MTH_A !== undefined) {
       mouthMeshes.push(obj);
+    }
 
     if (
       obj.morphTargetDictionary?.Fcl_EYE_Close !== undefined ||
       obj.morphTargetDictionary?.Fcl_EYE_Close_L !== undefined
-    )
+    ) {
       blinkMeshes.push(obj);
+    }
   });
 
   setupBlinking();
@@ -112,9 +118,9 @@ function setupBlinking() {
   function blink() {
     blinkMeshes.forEach((mesh) => {
       const d = mesh.morphTargetDictionary;
-      if (d.Fcl_EYE_Close !== undefined)
+      if (d.Fcl_EYE_Close !== undefined) {
         mesh.morphTargetInfluences[d.Fcl_EYE_Close] = 1;
-      else {
+      } else {
         if (d.Fcl_EYE_Close_L !== undefined)
           mesh.morphTargetInfluences[d.Fcl_EYE_Close_L] = 1;
         if (d.Fcl_EYE_Close_R !== undefined)
@@ -123,18 +129,20 @@ function setupBlinking() {
     });
 
     setTimeout(() => {
-      blinkMeshes.forEach((mesh) =>
+      blinkMeshes.forEach((mesh) => {
         Object.keys(mesh.morphTargetDictionary).forEach((k) => {
-          if (k.includes("EYE_Close"))
+          if (k.includes("EYE_Close")) {
             mesh.morphTargetInfluences[
               mesh.morphTargetDictionary[k]
             ] = 0;
-        })
-      );
+          }
+        });
+      });
     }, 120);
 
     setTimeout(blink, 3000 + Math.random() * 3000);
   }
+
   blink();
 }
 
@@ -152,21 +160,21 @@ const mouthShapes = [
 let talkingInterval = null;
 
 function resetMouth() {
-  mouthMeshes.forEach((m) =>
-    mouthShapes.forEach((n) => {
-      const i = m.morphTargetDictionary[n];
-      if (i !== undefined) m.morphTargetInfluences[i] = 0;
-    })
-  );
+  mouthMeshes.forEach((mesh) => {
+    mouthShapes.forEach((name) => {
+      const i = mesh.morphTargetDictionary[name];
+      if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
+    });
+  });
 }
 
 function startLipSync() {
   talkingInterval = setInterval(() => {
     resetMouth();
-    const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-    mouthMeshes.forEach((m) => {
-      const i = m.morphTargetDictionary[s];
-      if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
+    const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+    mouthMeshes.forEach((mesh) => {
+      const i = mesh.morphTargetDictionary[shape];
+      if (i !== undefined) mesh.morphTargetInfluences[i] = 0.8;
     });
   }, 120);
 }
@@ -177,7 +185,7 @@ function stopLipSync() {
 }
 
 /* =========================
-   EMOTION + GESTURES
+   EMOTION SYSTEM
 ========================= */
 const emotionMap = {
   neutral: "Fcl_ALL_Neutral",
@@ -192,45 +200,49 @@ function setEmotion(emotion) {
   const morph = emotionMap[emotion];
   if (!morph) return;
 
-  mouthMeshes.forEach((m) => {
+  mouthMeshes.forEach((mesh) => {
     Object.values(emotionMap).forEach((e) => {
-      const i = m.morphTargetDictionary[e];
-      if (i !== undefined) m.morphTargetInfluences[i] = 0;
+      const i = mesh.morphTargetDictionary[e];
+      if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
     });
-    const idx = m.morphTargetDictionary[morph];
-    if (idx !== undefined) m.morphTargetInfluences[idx] = 1;
+
+    const idx = mesh.morphTargetDictionary[morph];
+    if (idx !== undefined) mesh.morphTargetInfluences[idx] = 1;
   });
 }
 
 /* =========================
-   SPEECH (DEBUG)
+   SPEECH (RESET TO NEUTRAL)
 ========================= */
 function speak(text) {
   console.log("🗣️ speak():", text);
 
-  if (!window.speechSynthesis) {
-    console.error("❌ speechSynthesis unavailable");
-    return;
-  }
+  if (!window.speechSynthesis) return;
 
   speechSynthesis.cancel();
 
   const u = new SpeechSynthesisUtterance(text);
+
   u.onstart = () => {
     console.log("🔊 Speech started");
     startLipSync();
   };
+
   u.onend = () => {
     console.log("🔇 Speech ended");
     stopLipSync();
+
+    // ✅ RESET EMOTION AFTER TALKING
+    setEmotion("neutral");
   };
+
   u.onerror = (e) => console.error("❌ Speech error:", e);
 
   speechSynthesis.speak(u);
 }
 
 /* =========================
-   AI CONNECTOR (DEBUG)
+   AI CONNECTOR
 ========================= */
 async function sendToAI(text) {
   console.log("➡️ sendToAI:", text);
@@ -242,15 +254,13 @@ async function sendToAI(text) {
       body: JSON.stringify({ text })
     });
 
-    console.log("⬅️ AI status:", res.status);
-
     const data = await res.json();
     console.log("🤖 AI payload:", data);
 
     if (data.emotion) setEmotion(data.emotion);
     if (data.reply) speak(data.reply);
   } catch (err) {
-    console.error("❌ AI fetch error:", err);
+    console.error("❌ AI error:", err);
   }
 }
 
