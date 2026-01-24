@@ -2,6 +2,20 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
 /* =========================
+   AUDIO UNLOCK (REQUIRED)
+========================= */
+window.addEventListener(
+  "click",
+  () => {
+    if (window.speechSynthesis) {
+      speechSynthesis.resume();
+      console.log("🔊 Speech unlocked");
+    }
+  },
+  { once: true }
+);
+
+/* =========================
    CONFIG
 ========================= */
 const AI_ENDPOINT =
@@ -44,19 +58,14 @@ dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
 /* =========================
-   IDLE POSE (NO T-POSE)
+   IDLE POSE
 ========================= */
 function applyIdlePose(model) {
   model.traverse((obj) => {
     if (!obj.isBone) return;
-
-    if (obj.name.includes("UpperArm")) {
+    if (obj.name.includes("UpperArm"))
       obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
-    }
-
-    if (obj.name.includes("LowerArm")) {
-      obj.rotation.z = 0.1;
-    }
+    if (obj.name.includes("LowerArm")) obj.rotation.z = 0.1;
   });
 }
 
@@ -82,33 +91,18 @@ loader.load("./avatar1.glb", (gltf) => {
       obj.material.needsUpdate = true;
     }
 
-    if (
-      obj.morphTargetDictionary &&
-      obj.morphTargetDictionary["Fcl_MTH_A"] !== undefined
-    ) {
+    if (obj.morphTargetDictionary?.Fcl_MTH_A !== undefined)
       mouthMeshes.push(obj);
-    }
 
     if (
-      obj.morphTargetDictionary &&
-      (obj.morphTargetDictionary["Fcl_EYE_Close"] !== undefined ||
-        obj.morphTargetDictionary["Fcl_EYE_Close_L"] !== undefined)
-    ) {
+      obj.morphTargetDictionary?.Fcl_EYE_Close !== undefined ||
+      obj.morphTargetDictionary?.Fcl_EYE_Close_L !== undefined
+    )
       blinkMeshes.push(obj);
-    }
   });
 
   setupBlinking();
   console.log("✅ Avatar loaded & ready");
-});
-
-/* =========================
-   RESIZE
-========================= */
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 /* =========================
@@ -118,31 +112,29 @@ function setupBlinking() {
   function blink() {
     blinkMeshes.forEach((mesh) => {
       const d = mesh.morphTargetDictionary;
-      if (d["Fcl_EYE_Close"] !== undefined) {
-        mesh.morphTargetInfluences[d["Fcl_EYE_Close"]] = 1;
-      } else {
-        if (d["Fcl_EYE_Close_L"] !== undefined)
-          mesh.morphTargetInfluences[d["Fcl_EYE_Close_L"]] = 1;
-        if (d["Fcl_EYE_Close_R"] !== undefined)
-          mesh.morphTargetInfluences[d["Fcl_EYE_Close_R"]] = 1;
+      if (d.Fcl_EYE_Close !== undefined)
+        mesh.morphTargetInfluences[d.Fcl_EYE_Close] = 1;
+      else {
+        if (d.Fcl_EYE_Close_L !== undefined)
+          mesh.morphTargetInfluences[d.Fcl_EYE_Close_L] = 1;
+        if (d.Fcl_EYE_Close_R !== undefined)
+          mesh.morphTargetInfluences[d.Fcl_EYE_Close_R] = 1;
       }
     });
 
     setTimeout(() => {
-      blinkMeshes.forEach((mesh) => {
+      blinkMeshes.forEach((mesh) =>
         Object.keys(mesh.morphTargetDictionary).forEach((k) => {
-          if (k.includes("EYE_Close")) {
+          if (k.includes("EYE_Close"))
             mesh.morphTargetInfluences[
               mesh.morphTargetDictionary[k]
             ] = 0;
-          }
-        });
-      });
+        })
+      );
     }, 120);
 
     setTimeout(blink, 3000 + Math.random() * 3000);
   }
-
   blink();
 }
 
@@ -160,21 +152,21 @@ const mouthShapes = [
 let talkingInterval = null;
 
 function resetMouth() {
-  mouthMeshes.forEach((mesh) => {
-    mouthShapes.forEach((name) => {
-      const i = mesh.morphTargetDictionary[name];
-      if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
-    });
-  });
+  mouthMeshes.forEach((m) =>
+    mouthShapes.forEach((n) => {
+      const i = m.morphTargetDictionary[n];
+      if (i !== undefined) m.morphTargetInfluences[i] = 0;
+    })
+  );
 }
 
 function startLipSync() {
   talkingInterval = setInterval(() => {
     resetMouth();
-    const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-    mouthMeshes.forEach((mesh) => {
-      const i = mesh.morphTargetDictionary[shape];
-      if (i !== undefined) mesh.morphTargetInfluences[i] = 0.8;
+    const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+    mouthMeshes.forEach((m) => {
+      const i = m.morphTargetDictionary[s];
+      if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
     });
   }, 120);
 }
@@ -195,66 +187,71 @@ const emotionMap = {
   surprised: "Fcl_ALL_Surprised"
 };
 
-function applyEmotionGesture(emotion) {
-  if (!avatarRoot) return;
-
-  avatarRoot.traverse((bone) => {
-    if (!bone.isBone) return;
-
-    if (emotion === "happy" && bone.name.includes("Spine"))
-      bone.rotation.x = -0.05;
-
-    if (emotion === "sad" && bone.name.includes("Spine"))
-      bone.rotation.x = 0.08;
-
-    if (emotion === "angry" && bone.name.includes("Shoulder"))
-      bone.rotation.z *= 1.1;
-
-    if (emotion === "neutral") bone.rotation.set(0, 0, 0);
-  });
-}
-
 function setEmotion(emotion) {
+  console.log("😊 setEmotion:", emotion);
   const morph = emotionMap[emotion];
   if (!morph) return;
 
-  mouthMeshes.forEach((mesh) => {
+  mouthMeshes.forEach((m) => {
     Object.values(emotionMap).forEach((e) => {
-      const i = mesh.morphTargetDictionary[e];
-      if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
+      const i = m.morphTargetDictionary[e];
+      if (i !== undefined) m.morphTargetInfluences[i] = 0;
     });
-
-    const idx = mesh.morphTargetDictionary[morph];
-    if (idx !== undefined) mesh.morphTargetInfluences[idx] = 1;
+    const idx = m.morphTargetDictionary[morph];
+    if (idx !== undefined) m.morphTargetInfluences[idx] = 1;
   });
-
-  applyEmotionGesture(emotion);
 }
 
 /* =========================
-   SPEECH
+   SPEECH (DEBUG)
 ========================= */
 function speak(text) {
+  console.log("🗣️ speak():", text);
+
+  if (!window.speechSynthesis) {
+    console.error("❌ speechSynthesis unavailable");
+    return;
+  }
+
   speechSynthesis.cancel();
+
   const u = new SpeechSynthesisUtterance(text);
-  u.onstart = startLipSync;
-  u.onend = stopLipSync;
+  u.onstart = () => {
+    console.log("🔊 Speech started");
+    startLipSync();
+  };
+  u.onend = () => {
+    console.log("🔇 Speech ended");
+    stopLipSync();
+  };
+  u.onerror = (e) => console.error("❌ Speech error:", e);
+
   speechSynthesis.speak(u);
 }
 
 /* =========================
-   AI CONNECTOR
+   AI CONNECTOR (DEBUG)
 ========================= */
 async function sendToAI(text) {
-  const res = await fetch(AI_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text })
-  });
+  console.log("➡️ sendToAI:", text);
 
-  const data = await res.json();
-  if (data.emotion) setEmotion(data.emotion);
-  if (data.reply) speak(data.reply);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+
+    console.log("⬅️ AI status:", res.status);
+
+    const data = await res.json();
+    console.log("🤖 AI payload:", data);
+
+    if (data.emotion) setEmotion(data.emotion);
+    if (data.reply) speak(data.reply);
+  } catch (err) {
+    console.error("❌ AI fetch error:", err);
+  }
 }
 
 /* =========================
@@ -264,27 +261,10 @@ window.addEventListener("message", (event) => {
   if (!event.data || !event.data.type) return;
 
   if (event.data.type === "AI_MESSAGE") {
-    console.log("📩 Message from Storyline:", event.data.text);
+    console.log("📩 From Storyline:", event.data.text);
     sendToAI(event.data.text);
   }
-
-  if (event.data.type === "SET_EMOTION") {
-    setEmotion(event.data.emotion);
-  }
-
-  if (event.data.type === "SPEAK") {
-    speak(event.data.text);
-  }
 });
-
-/* =========================
-   STORYLINE API (OPTIONAL)
-========================= */
-window.avatar = {
-  speak,
-  setEmotion,
-  sendToAI
-};
 
 /* =========================
    RENDER LOOP
