@@ -2,31 +2,48 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
 /* =========================
-   AUDIO UNLOCK (CRITICAL)
+   AUDIO UNLOCK OVERLAY
 ========================= */
-window.addEventListener(
-  "click",
-  () => {
-    if (window.speechSynthesis) {
-      speechSynthesis.resume();
-      console.log("🔊 Speech unlocked");
-    }
-  },
-  { once: true }
-);
+let audioUnlocked = false;
+
+const unlockDiv = document.createElement("div");
+unlockDiv.innerHTML = "🔊 Click to enable voice";
+unlockDiv.style.cssText = `
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+  z-index: 9999;
+`;
+
+unlockDiv.addEventListener("click", () => {
+  if (window.speechSynthesis) {
+    speechSynthesis.resume();
+    audioUnlocked = true;
+    console.log("🔓 Audio unlocked by user");
+    unlockDiv.remove();
+  }
+});
+
+document.body.appendChild(unlockDiv);
 
 /* =========================
-   VOICE MANAGEMENT (FIX)
+   VOICE MANAGEMENT
 ========================= */
 let voices = [];
 
 function loadVoices() {
   voices = speechSynthesis.getVoices();
-  if (voices.length > 0) {
+  if (voices.length) {
     console.log("🎙️ Voices loaded:", voices.map(v => v.name));
   }
 }
-
 speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
@@ -76,11 +93,12 @@ scene.add(dirLight);
    IDLE POSE
 ========================= */
 function applyIdlePose(model) {
-  model.traverse((obj) => {
+  model.traverse(obj => {
     if (!obj.isBone) return;
     if (obj.name.includes("UpperArm"))
       obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
-    if (obj.name.includes("LowerArm")) obj.rotation.z = 0.1;
+    if (obj.name.includes("LowerArm"))
+      obj.rotation.z = 0.1;
   });
 }
 
@@ -98,7 +116,7 @@ loader.load("./avatar1.glb", (gltf) => {
 
   applyIdlePose(avatarRoot);
 
-  avatarRoot.traverse((obj) => {
+  avatarRoot.traverse(obj => {
     if (!obj.isMesh) return;
 
     if (obj.material?.map) {
@@ -218,10 +236,15 @@ function setEmotion(emotion) {
 }
 
 /* =========================
-   SPEECH (FIXED + DELAY)
+   SPEECH (FINAL, SAFE)
 ========================= */
 function speak(text) {
   console.log("🗣️ speak():", text);
+
+  if (!audioUnlocked) {
+    console.warn("🔒 Audio not unlocked yet");
+    return;
+  }
 
   if (!window.speechSynthesis) return;
 
@@ -229,15 +252,11 @@ function speak(text) {
 
   const u = new SpeechSynthesisUtterance(text);
 
-  // ✅ Force a valid voice
   const voice =
     voices.find(v => v.lang.startsWith("en")) || voices[0];
-
   if (voice) {
     u.voice = voice;
     console.log("🎙️ Using voice:", voice.name);
-  } else {
-    console.warn("⚠️ No voice available yet");
   }
 
   u.onstart = () => {
@@ -248,14 +267,10 @@ function speak(text) {
   u.onend = () => {
     console.log("🔇 Speech ended");
     stopLipSync();
-
-    // ⏳ Human-like delay before neutral
     setTimeout(() => setEmotion("neutral"), 600);
   };
 
-  u.onerror = (e) => {
-    console.error("❌ Speech error:", e);
-  };
+  u.onerror = (e) => console.error("❌ Speech error:", e);
 
   speechSynthesis.speak(u);
 }
