@@ -19,7 +19,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 1.45, 2.6);
 
 /* =========================
-   RENDERER (CRITICAL)
+   RENDERER
 ========================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -137,20 +137,8 @@ function speak(text) {
   speechSynthesis.speak(utterance);
 }
 
-/* =========================
-   TEST BUTTON (REMOVE LATER)
-========================= */
-const btn = document.createElement("button");
-btn.textContent = "Speak";
-btn.style.position = "fixed";
-btn.style.bottom = "20px";
-btn.style.left = "20px";
-btn.style.zIndex = "10";
-document.body.appendChild(btn);
-
-btn.addEventListener("click", () => {
-  speak("Hello! I am your real time virtual assistant.");
-});
+/* 🔑 EXPOSE TO CONSOLE */
+window.speak = speak;
 
 /* =========================
    RENDER LOOP
