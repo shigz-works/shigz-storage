@@ -2,52 +2,6 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
 /* =========================
-   AUDIO UNLOCK OVERLAY
-========================= */
-let audioUnlocked = false;
-
-const unlockDiv = document.createElement("div");
-unlockDiv.innerHTML = "🔊 Click to enable voice";
-unlockDiv.style.cssText = `
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-family: Arial, sans-serif;
-  cursor: pointer;
-  z-index: 9999;
-`;
-
-unlockDiv.addEventListener("click", () => {
-  if (window.speechSynthesis) {
-    speechSynthesis.resume();
-    audioUnlocked = true;
-    console.log("🔓 Audio unlocked by user");
-    unlockDiv.remove();
-  }
-});
-
-document.body.appendChild(unlockDiv);
-
-/* =========================
-   VOICE MANAGEMENT
-========================= */
-let voices = [];
-
-function loadVoices() {
-  voices = speechSynthesis.getVoices();
-  if (voices.length) {
-    console.log("🎙️ Voices loaded:", voices.map(v => v.name));
-  }
-}
-speechSynthesis.onvoiceschanged = loadVoices;
-loadVoices();
-
-/* =========================
    CONFIG
 ========================= */
 const AI_ENDPOINT =
@@ -90,7 +44,7 @@ dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
 /* =========================
-   IDLE POSE
+   IDLE POSE (NO T-POSE)
 ========================= */
 function applyIdlePose(model) {
   model.traverse(obj => {
@@ -136,6 +90,15 @@ loader.load("./avatar1.glb", (gltf) => {
 
   setupBlinking();
   console.log("✅ Avatar loaded & ready");
+});
+
+/* =========================
+   RESIZE
+========================= */
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 /* =========================
@@ -236,47 +199,26 @@ function setEmotion(emotion) {
 }
 
 /* =========================
-   SPEECH (FINAL, SAFE)
+   CLOUD TTS AUDIO PLAYER
 ========================= */
-function speak(text) {
-  console.log("🗣️ speak():", text);
+const audioPlayer = new Audio();
+audioPlayer.crossOrigin = "anonymous";
 
-  if (!audioUnlocked) {
-    console.warn("🔒 Audio not unlocked yet");
-    return;
-  }
+audioPlayer.onplay = () => {
+  console.log("🔊 Audio playing");
+  startLipSync();
+};
 
-  if (!window.speechSynthesis) return;
+audioPlayer.onended = () => {
+  console.log("🔇 Audio ended");
+  stopLipSync();
 
-  speechSynthesis.cancel();
-
-  const u = new SpeechSynthesisUtterance(text);
-
-  const voice =
-    voices.find(v => v.lang.startsWith("en")) || voices[0];
-  if (voice) {
-    u.voice = voice;
-    console.log("🎙️ Using voice:", voice.name);
-  }
-
-  u.onstart = () => {
-    console.log("🔊 Speech started");
-    startLipSync();
-  };
-
-  u.onend = () => {
-    console.log("🔇 Speech ended");
-    stopLipSync();
-    setTimeout(() => setEmotion("neutral"), 600);
-  };
-
-  u.onerror = (e) => console.error("❌ Speech error:", e);
-
-  speechSynthesis.speak(u);
-}
+  // ⏳ Delay before returning to neutral
+  setTimeout(() => setEmotion("neutral"), 600);
+};
 
 /* =========================
-   AI CONNECTOR
+   AI CONNECTOR (CLOUD TTS)
 ========================= */
 async function sendToAI(text) {
   console.log("➡️ sendToAI:", text);
@@ -292,7 +234,11 @@ async function sendToAI(text) {
     console.log("🤖 AI payload:", data);
 
     if (data.emotion) setEmotion(data.emotion);
-    if (data.reply) speak(data.reply);
+
+    if (data.audio) {
+      audioPlayer.src = "data:audio/mp3;base64," + data.audio;
+      audioPlayer.play();
+    }
   } catch (err) {
     console.error("❌ AI error:", err);
   }
