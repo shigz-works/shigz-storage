@@ -4,8 +4,8 @@ import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/
 /* =========================
    CONFIG
 ========================= */
-// 🔁 CHANGE THIS TO YOUR REAL CLOUD RUN URL
-const AI_ENDPOINT = "https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
+const AI_ENDPOINT =
+  "https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
 
 /* =========================
    SCENE
@@ -38,9 +38,28 @@ document.body.appendChild(renderer.domElement);
    LIGHTING
 ========================= */
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.6));
+
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
+
+/* =========================
+   IDLE POSE (NO T-POSE)
+========================= */
+function applyIdlePose(model) {
+  model.traverse((obj) => {
+    if (!obj.isBone) return;
+
+    // VRoid-standard arm bones
+    if (obj.name.includes("UpperArm")) {
+      obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
+    }
+
+    if (obj.name.includes("LowerArm")) {
+      obj.rotation.z = 0.1;
+    }
+  });
+}
 
 /* =========================
    AVATAR
@@ -53,6 +72,9 @@ loader.load("./avatar1.glb", (gltf) => {
   avatarRoot = gltf.scene;
   scene.add(avatarRoot);
 
+  // ✅ Apply relaxed idle pose
+  applyIdlePose(avatarRoot);
+
   avatarRoot.traverse((obj) => {
     if (!obj.isMesh) return;
 
@@ -61,17 +83,16 @@ loader.load("./avatar1.glb", (gltf) => {
       obj.material.needsUpdate = true;
     }
 
-    // Collect ALL meshes with mouth morphs
+    // Collect mouth-capable meshes
     if (
       obj.morphTargetDictionary &&
       obj.morphTargetDictionary["Fcl_MTH_A"] !== undefined
     ) {
       mouthMeshes.push(obj);
-      console.log("👄 Mouth mesh:", obj.name);
     }
   });
 
-  console.log(`✅ Total mouth meshes: ${mouthMeshes.length}`);
+  console.log(`✅ Mouth meshes found: ${mouthMeshes.length}`);
 });
 
 /* =========================
@@ -134,31 +155,19 @@ const emotionMap = {
   surprised: "Fcl_ALL_Surprised"
 };
 
-let currentEmotion = "neutral";
-
 function setEmotion(emotion) {
   const morphName = emotionMap[emotion];
-  if (!morphName) {
-    console.warn("❌ Unknown emotion:", emotion);
-    return;
-  }
-
-  currentEmotion = emotion;
+  if (!morphName) return;
 
   mouthMeshes.forEach((mesh) => {
-    // reset only emotion morphs
     Object.values(emotionMap).forEach((emoMorph) => {
       const i = mesh.morphTargetDictionary[emoMorph];
       if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
     });
 
     const index = mesh.morphTargetDictionary[morphName];
-    if (index !== undefined) {
-      mesh.morphTargetInfluences[index] = 1;
-    }
+    if (index !== undefined) mesh.morphTargetInfluences[index] = 1;
   });
-
-  console.log(`😊 Emotion set: ${emotion}`);
 }
 
 /* =========================
@@ -170,9 +179,6 @@ function speak(text) {
   speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.pitch = 1;
-
   utterance.onstart = startLipSync;
   utterance.onend = stopLipSync;
 
@@ -180,23 +186,18 @@ function speak(text) {
 }
 
 /* =========================
-   AI BACKEND CONNECTOR
+   AI CONNECTOR
 ========================= */
 async function sendToAI(text) {
-  try {
-    const res = await fetch(AI_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
+  const res = await fetch(AI_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
 
-    const data = await res.json();
-
-    if (data.emotion) setEmotion(data.emotion);
-    if (data.reply) speak(data.reply);
-  } catch (err) {
-    console.error("❌ AI error:", err);
-  }
+  const data = await res.json();
+  if (data.emotion) setEmotion(data.emotion);
+  if (data.reply) speak(data.reply);
 }
 
 /* =========================
@@ -211,15 +212,13 @@ window.testMouth = () => {
     const i = mesh.morphTargetDictionary["Fcl_MTH_A"];
     if (i !== undefined) mesh.morphTargetInfluences[i] = 1;
   });
-  console.log("👄 testMouth triggered");
 };
 
 /* =========================
-   RENDER LOOP
+   RENDER LOOP (NO ROTATION)
 ========================= */
 function animate() {
   requestAnimationFrame(animate);
-  if (avatarRoot) avatarRoot.rotation.y += 0.0004;
   renderer.render(scene, camera);
 }
 animate();
