@@ -93,15 +93,6 @@ loader.load("./avatar1.glb", (gltf) => {
 });
 
 /* =========================
-   RESIZE
-========================= */
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-/* =========================
    BLINKING
 ========================= */
 function setupBlinking() {
@@ -213,9 +204,22 @@ audioPlayer.onended = () => {
   console.log("🔇 Audio ended");
   stopLipSync();
 
-  // ⏳ Delay before returning to neutral
-  setTimeout(() => setEmotion("neutral"), 600);
+  // ⏳ Delay before neutral + notify Storyline
+  setTimeout(() => {
+    setEmotion("neutral");
+    notifyStorylineSpeechEnded();
+  }, 600);
 };
+
+/* =========================
+   STORYLINE CALLBACK
+========================= */
+function notifyStorylineSpeechEnded() {
+  window.parent.postMessage(
+    { type: "AVATAR_SPEECH_ENDED" },
+    "*"
+  );
+}
 
 /* =========================
    AI CONNECTOR (CLOUD TTS)
@@ -241,6 +245,7 @@ async function sendToAI(text) {
     }
   } catch (err) {
     console.error("❌ AI error:", err);
+    notifyStorylineSpeechEnded();
   }
 }
 
