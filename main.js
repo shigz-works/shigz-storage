@@ -280,6 +280,35 @@ if (data.audio) {
             notifyStorylineSpeechEnded();
           });
       }
+ } else if (data.reply) {
+       // Fallback: browser TTS if backend did not return audio
+       console.warn("⚠️ No audio payload; using browser TTS fallback");
+       const utterance = new SpeechSynthesisUtterance(data.reply);
+       utterance.rate = 1.0;
+       utterance.pitch = 1.0;
+
+       utterance.onstart = () => {
+         startLipSync();
+       };
+
+       utterance.onend = () => {
+         stopLipSync();
+         setTimeout(() => {
+           resetAvatar();
+           notifyStorylineSpeechEnded();
+         }, 600);
+       };
+
+       utterance.onerror = (e) => {
+         console.error("❌ Browser TTS error:", e);
+         stopLipSync();
+         notifyStorylineSpeechEnded();
+       };
+
+       speechSynthesis.speak(utterance);
+ } else {
+       console.warn("⚠️ No audio or reply in payload; ending conversation");
+       notifyStorylineSpeechEnded();
 }
 } catch (err) {
 console.error("❌ AI error:", err);
