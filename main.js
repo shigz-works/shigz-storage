@@ -2,24 +2,31 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
 /* =========================
-   SCENE
+  CONFIG
+========================= */
+const AI_ENDPOINT =
+"https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
+
+/* =========================
+  SCENE
 ========================= */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf2f2f2);
 
 /* =========================
-   CAMERA
+  CAMERA (HEAD & SHOULDERS)
 ========================= */
 const camera = new THREE.PerspectiveCamera(
-  30,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  100
+28,
+window.innerWidth / window.innerHeight,
+0.1,
+100
 );
-camera.position.set(0, 1.45, 2.6);
+camera.position.set(0, 1.6, 1.8);
+camera.lookAt(0, 1.6, 0);
 
 /* =========================
-   RENDERER
+  RENDERER
 ========================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -29,164 +36,259 @@ renderer.toneMappingExposure = 1.2;
 document.body.appendChild(renderer.domElement);
 
 /* =========================
-   LIGHTING
+  LIGHTING
 ========================= */
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.6));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
 dirLight.position.set(2, 4, 3);
 scene.add(dirLight);
 
 /* =========================
-   AVATAR
+  IDLE POSE (NO T-POSE)
+========================= */
+function applyIdlePose(model) {
+model.traverse(obj => {
+if (!obj.isBone) return;
+if (obj.name.includes("UpperArm"))
+obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
+if (obj.name.includes("LowerArm"))
+obj.rotation.z = 0.1;
+});
+}
+
+/* =========================
+  AVATAR
 ========================= */
 let avatarRoot = null;
-let faceMesh = null;
+let mouthMeshes = [];
+let blinkMeshes = [];
 
 const loader = new GLTFLoader();
 loader.load("./avatar1.glb", (gltf) => {
-  avatarRoot = gltf.scene;
-  scene.add(avatarRoot);
+avatarRoot = gltf.scene;
+scene.add(avatarRoot);
 
-  avatarRoot.traverse((obj) => {
-    if (
-      obj.isMesh &&
-      obj.morphTargetDictionary &&
-      obj.morphTargetDictionary["Fcl_MTH_A"] !== undefined
-    ) {
-      faceMesh = obj;
-      console.log("✅ Mouth mesh found:", obj.morphTargetDictionary);
-    }
+applyIdlePose(avatarRoot);
 
-    if (obj.isMesh && obj.material?.map) {
-      obj.material.map.colorSpace = THREE.SRGBColorSpace;
-      obj.material.needsUpdate = true;
-    }
-  });
+avatarRoot.traverse(obj => {
+if (!obj.isMesh) return;
+
+if (obj.material?.map) {
+obj.material.map.colorSpace = THREE.SRGBColorSpace;
+obj.material.needsUpdate = true;
+}
+
+if (obj.morphTargetDictionary?.Fcl_MTH_A !== undefined)
+mouthMeshes.push(obj);
+
+if (
+obj.morphTargetDictionary?.Fcl_EYE_Close !== undefined ||
+obj.morphTargetDictionary?.Fcl_EYE_Close_L !== undefined
+)
+blinkMeshes.push(obj);
+});
+
+setupBlinking();
+console.log("✅ Avatar loaded & ready");
 });
 
 /* =========================
-   RESIZE
+  BLINKING
 ========================= */
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+function setupBlinking() {
+function blink() {
+blinkMeshes.forEach(mesh => {
+const d = mesh.morphTargetDictionary;
+if (d.Fcl_EYE_Close !== undefined)
+mesh.morphTargetInfluences[d.Fcl_EYE_Close] = 1;
+else {
+if (d.Fcl_EYE_Close_L !== undefined)
+mesh.morphTargetInfluences[d.Fcl_EYE_Close_L] = 1;
+if (d.Fcl_EYE_Close_R !== undefined)
+mesh.morphTargetInfluences[d.Fcl_EYE_Close_R] = 1;
+}
 });
 
+setTimeout(() => {
+blinkMeshes.forEach(mesh =>
+Object.keys(mesh.morphTargetDictionary).forEach(k => {
+if (k.includes("EYE_Close"))
+mesh.morphTargetInfluences[
+mesh.morphTargetDictionary[k]
+] = 0;
+})
+);
+}, 120);
+
+setTimeout(blink, 3000 + Math.random() * 3000);
+}
+blink();
+}
+
 /* =========================
-   LIP SYNC SYSTEM
+  LIP SYNC
 ========================= */
 const mouthShapes = [
-  "Fcl_MTH_A",
-  "Fcl_MTH_I",
-  "Fcl_MTH_U",
-  "Fcl_MTH_E",
-  "Fcl_MTH_O"
+"Fcl_MTH_A",
+"Fcl_MTH_I",
+"Fcl_MTH_U",
+"Fcl_MTH_E",
+"Fcl_MTH_O"
 ];
 
 let talkingInterval = null;
 
 function resetMouth() {
-  if (!faceMesh) return;
-  mouthShapes.forEach((name) => {
-    const i = faceMesh.morphTargetDictionary[name];
-    if (i !== undefined) faceMesh.morphTargetInfluences[i] = 0;
-  });
+mouthMeshes.forEach(m =>
+mouthShapes.forEach(n => {
+const i = m.morphTargetDictionary[n];
+if (i !== undefined) m.morphTargetInfluences[i] = 0;
+})
+);
 }
 
 function startLipSync() {
-  if (!faceMesh) return;
-
-  talkingInterval = setInterval(() => {
-    resetMouth();
-    const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-    const i = faceMesh.morphTargetDictionary[shape];
-    if (i !== undefined) faceMesh.morphTargetInfluences[i] = 0.7;
-  }, 120);
+talkingInterval = setInterval(() => {
+resetMouth();
+const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+mouthMeshes.forEach(m => {
+const i = m.morphTargetDictionary[s];
+if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
+});
+}, 120);
 }
 
 function stopLipSync() {
-  clearInterval(talkingInterval);
-  resetMouth();
+clearInterval(talkingInterval);
+resetMouth();
 }
 
 /* =========================
-   WEB SPEECH API
+  EMOTION SYSTEM
 ========================= */
-function speak(text) {
-  if (!window.speechSynthesis || !text) return;
+const emotionMap = {
+neutral: "Fcl_ALL_Neutral",
+happy: "Fcl_ALL_Joy",
+angry: "Fcl_ALL_Angry",
+sad: "Fcl_ALL_Sorrow",
+surprised: "Fcl_ALL_Surprised"
+};
 
-  speechSynthesis.cancel();
-  speechSynthesis.resume();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  const voices = speechSynthesis.getVoices();
-  utterance.voice = voices.find(v => v.lang.startsWith("en")) || voices[0];
-
-  utterance.rate = 1;
-  utterance.pitch = 1;
-  utterance.volume = 1;
-
-  utterance.onstart = startLipSync;
-  utterance.onend = stopLipSync;
-
-  speechSynthesis.speak(utterance);
-}
-
-/* 🔑 expose for console testing */
-window.speak = speak;
-
-/* =========================
-   EMOTION SYSTEM
-========================= */
 function setEmotion(emotion) {
-  if (!faceMesh) return;
+console.log("😊 setEmotion:", emotion);
+const morph = emotionMap[emotion];
+if (!morph) return;
 
-  Object.keys(faceMesh.morphTargetDictionary).forEach((key) => {
-    faceMesh.morphTargetInfluences[
-      faceMesh.morphTargetDictionary[key]
-    ] = 0;
-  });
-
-  const map = {
-    happy: "Fcl_ALL_Joy",
-    angry: "Fcl_ALL_Angry",
-    sad: "Fcl_ALL_Sorrow",
-    neutral: "Fcl_ALL_Neutral",
-    surprised: "Fcl_ALL_Surprised"
-  };
-
-  const morph = map[emotion] || map.neutral;
-  const i = faceMesh.morphTargetDictionary[morph];
-  if (i !== undefined) faceMesh.morphTargetInfluences[i] = 1;
-
-  console.log("😊 setEmotion:", emotion);
+mouthMeshes.forEach(mesh => {
+Object.values(emotionMap).forEach(e => {
+const i = mesh.morphTargetDictionary[e];
+if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
+});
+const idx = mesh.morphTargetDictionary[morph];
+if (idx !== undefined) mesh.morphTargetInfluences[idx] = 1;
+});
 }
 
 /* =========================
-   STORYLINE → AI HANDLER
+   CLOUD TTS AUDIO PLAYER
+   CLOUD TTS AUDIO PLAYER (FIXED)
+========================= */
+const audioPlayer = new Audio();
+audioPlayer.crossOrigin = "anonymous";
+audioPlayer.preload = "auto";
+audioPlayer.playsInline = true;
+audioPlayer.muted = false;
+
+audioPlayer.onplay = () => {
+console.log("🔊 Audio playing");
+startLipSync();
+};
+
+audioPlayer.onended = () => {
+console.log("🔇 Audio ended");
+stopLipSync();
+
+  // ⏳ Delay before neutral + notify Storyline
+setTimeout(() => {
+setEmotion("neutral");
+notifyStorylineSpeechEnded();
+}, 600);
+};
+
+audioPlayer.onerror = (e) => {
+  console.error("❌ Audio element error:", e);
+  stopLipSync();
+  notifyStorylineSpeechEnded();
+};
+
+/* =========================
+  STORYLINE CALLBACK
+========================= */
+function notifyStorylineSpeechEnded() {
+window.parent.postMessage(
+{ type: "AVATAR_SPEECH_ENDED" },
+"*"
+);
+}
+
+/* =========================
+  AI CONNECTOR (CLOUD TTS)
+========================= */
+async function sendToAI(text) {
+console.log("➡️ sendToAI:", text);
+
+try {
+const res = await fetch(AI_ENDPOINT, {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({ text })
+});
+
+const data = await res.json();
+console.log("🤖 AI payload:", data);
+
+if (data.emotion) setEmotion(data.emotion);
+
+if (data.audio) {
+audioPlayer.src = "data:audio/mp3;base64," + data.audio;
+      audioPlayer.play();
+
+      const playPromise = audioPlayer.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log("▶️ Audio playback started");
+          })
+          .catch(err => {
+            console.error("🚫 Audio playback blocked:", err);
+            stopLipSync();
+            notifyStorylineSpeechEnded();
+          });
+      }
+}
+} catch (err) {
+console.error("❌ AI error:", err);
+notifyStorylineSpeechEnded();
+}
+}
+
+/* =========================
+  STORYLINE MESSAGE BRIDGE
 ========================= */
 window.addEventListener("message", (event) => {
-  const data = event.data;
+if (!event.data || !event.data.type) return;
 
-  if (data?.type === "aiResponse") {
-    console.log("🤖 AI payload:", data);
-
-    // ✅ emotion
-    setEmotion(data.emotion);
-
-    // ✅ TALK AFTER AI REPLY (FIX)
-    speak(data.reply);
-  }
+if (event.data.type === "AI_MESSAGE") {
+console.log("📩 From Storyline:", event.data.text);
+sendToAI(event.data.text);
+}
 });
 
 /* =========================
-   RENDER LOOP
+  RENDER LOOP
 ========================= */
 function animate() {
-  requestAnimationFrame(animate);
-  if (avatarRoot) avatarRoot.rotation.y += 0.0004;
-  renderer.render(scene, camera);
+requestAnimationFrame(animate);
+renderer.render(scene, camera);
 }
 animate();
