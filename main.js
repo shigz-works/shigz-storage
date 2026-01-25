@@ -189,6 +189,21 @@ if (idx !== undefined) mesh.morphTargetInfluences[idx] = 1;
 });
 }
 
+function resetAvatar() {
+console.log("🔄 Resetting avatar to idle state");
+// Reset all emotions
+mouthMeshes.forEach(mesh => {
+Object.values(emotionMap).forEach(e => {
+const i = mesh.morphTargetDictionary[e];
+if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
+});
+});
+// Reset mouth
+resetMouth();
+// Reapply idle pose
+if (avatarRoot) applyIdlePose(avatarRoot);
+}
+
 /* =========================
    CLOUD TTS AUDIO PLAYER
    CLOUD TTS AUDIO PLAYER (FIXED)
@@ -208,9 +223,9 @@ audioPlayer.onended = () => {
 console.log("🔇 Audio ended");
 stopLipSync();
 
-  // ⏳ Delay before neutral + notify Storyline
+  // ⏳ Delay before reset + notify Storyline
 setTimeout(() => {
-setEmotion("neutral");
+resetAvatar();
 notifyStorylineSpeechEnded();
 }, 600);
 };
@@ -250,9 +265,8 @@ console.log("🤖 AI payload:", data);
 if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
-audioPlayer.src = "data:audio/mp3;base64," + data.audio;
-      audioPlayer.play();
-
+      audioPlayer.src = "data:audio/mp3;base64," + data.audio;
+      
       const playPromise = audioPlayer.play();
       if (playPromise !== undefined) {
         playPromise
@@ -261,6 +275,7 @@ audioPlayer.src = "data:audio/mp3;base64," + data.audio;
           })
           .catch(err => {
             console.error("🚫 Audio playback blocked:", err);
+            console.error("Full error:", err);
             stopLipSync();
             notifyStorylineSpeechEnded();
           });
