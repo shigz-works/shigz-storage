@@ -44,7 +44,7 @@ let avatarRoot = null;
 let faceMesh = null;
 
 const loader = new GLTFLoader();
-loader.load("./avatar.glb", (gltf) => {
+loader.load("./avatar1.glb", (gltf) => {
   avatarRoot = gltf.scene;
   scene.add(avatarRoot);
 
