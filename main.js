@@ -47,25 +47,31 @@ scene.add(dirLight);
   IDLE POSE (NO T-POSE)
 ========================= */
 function applyIdlePose(model) {
-  let bonesFound = 0;
+  const shoulderTilt = Math.PI * 0.12; // ~21.6° clavicle drop
+  const upperArmDrop = Math.PI * 0.55; // ~99° bring arms to sides
+  const elbowBend   = Math.PI * 0.25; // ~45° slight elbow bend
+
   model.traverse(obj => {
     if (!obj.isBone) return;
-    
-    console.log("🦴 Bone found:", obj.name);
-    bonesFound++;
-    
-    if (obj.name.includes("UpperArm")) {
-      obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
-      obj.updateMatrix();
-      console.log("✅ Applied UpperArm rotation:", obj.name);
+
+    // Clavicle tilt to bring shoulders down a bit
+    if (obj.name.includes("Shoulder")) {
+      obj.rotation.z = obj.name.includes("L") ? -shoulderTilt : shoulderTilt;
+      obj.updateMatrixWorld(true);
     }
+
+    // Swing arms down from T-pose to side pose
+    if (obj.name.includes("UpperArm")) {
+      obj.rotation.z = obj.name.includes("L") ? -upperArmDrop : upperArmDrop;
+      obj.updateMatrixWorld(true);
+    }
+
+    // Light elbow bend so they are not locked straight
     if (obj.name.includes("LowerArm")) {
-      obj.rotation.z = 0.1;
-      obj.updateMatrix();
-      console.log("✅ Applied LowerArm rotation:", obj.name);
+      obj.rotation.z = obj.name.includes("L") ? -elbowBend : elbowBend;
+      obj.updateMatrixWorld(true);
     }
   });
-  console.log(`🦴 Total bones found: ${bonesFound}`);
 }
 
 /* =========================
