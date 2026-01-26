@@ -336,6 +336,71 @@ stopLipSync();
 notifyStorylineSpeechEnded();
 };
 
+// Simple unlock prompt to guarantee a user gesture inside the iframe
+let unlockPromptEl = null;
+
+function showUnlockPrompt(onUnlocked) {
+  // Reuse prompt if already visible
+  if (unlockPromptEl) {
+    unlockPromptEl.onclick = handleUnlock;
+    unlockPromptEl.ontouchstart = handleUnlock;
+    return;
+  }
+
+  unlockPromptEl = document.createElement("button");
+  unlockPromptEl.textContent = "Tap to enable sound";
+  unlockPromptEl.style.position = "absolute";
+  unlockPromptEl.style.left = "50%";
+  unlockPromptEl.style.bottom = "24px";
+  unlockPromptEl.style.transform = "translateX(-50%)";
+  unlockPromptEl.style.padding = "12px 16px";
+  unlockPromptEl.style.fontSize = "16px";
+  unlockPromptEl.style.fontFamily = "'Segoe UI', sans-serif";
+  unlockPromptEl.style.border = "none";
+  unlockPromptEl.style.borderRadius = "10px";
+  unlockPromptEl.style.background = "#111";
+  unlockPromptEl.style.color = "#fff";
+  unlockPromptEl.style.cursor = "pointer";
+  unlockPromptEl.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
+  unlockPromptEl.style.zIndex = "9999";
+
+  function handleUnlock(event) {
+    event.preventDefault();
+    unlockAudio();
+    if (onUnlocked) onUnlocked();
+    if (unlockPromptEl && unlockPromptEl.parentElement) {
+      unlockPromptEl.parentElement.removeChild(unlockPromptEl);
+    }
+    unlockPromptEl = null;
+  }
+
+  unlockPromptEl.addEventListener("click", handleUnlock, { once: true });
+  unlockPromptEl.addEventListener("touchstart", handleUnlock, { once: true });
+  document.body.appendChild(unlockPromptEl);
+}
+
+function playAudioWithUnlock() {
+  const attemptPlay = () => {
+    audioPlayer.play().catch(err => {
+      console.warn("⚠️ Playback error:", err.message);
+      stopLipSync();
+      notifyStorylineSpeechEnded();
+    });
+  };
+
+  // If we already unlocked, just play
+  if (audioUnlocked) {
+    attemptPlay();
+    return;
+  }
+
+  // Require an explicit tap inside the iframe to satisfy browser policy
+  showUnlockPrompt(() => {
+    // Run play inside the same user gesture
+    attemptPlay();
+  });
+}
+
 /* =========================
   STORYLINE CALLBACK
 ========================= */
@@ -366,18 +431,7 @@ if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
-      
-      audioPlayer.play().catch(err => {
-        console.warn("⚠️ Playback error:", err.message);
-        // Try again after a brief delay if audio wasn't unlocked
-        setTimeout(() => {
-          audioPlayer.play().catch(retryErr => {
-            console.error("🚫 Playback failed:", retryErr.message);
-            stopLipSync();
-            notifyStorylineSpeechEnded();
-          });
-        }, 200);
-      });
+      playAudioWithUnlock();
  } else if (data.reply) {
        // Fallback: browser TTS if backend did not return audio
        console.warn("⚠️ No audio payload; using browser TTS fallback");
@@ -423,7 +477,11 @@ if (!event.data || !event.data.type) return;
 // Handle audio unlock from Storyline
 if (event.data.type === "UNLOCK_AUDIO") {
 console.log("🔓 Audio unlocked by Storyline");
-audioUnlocked = true;
+unlockAudio();
+if (unlockPromptEl && unlockPromptEl.parentElement) {
+  unlockPromptEl.parentElement.removeChild(unlockPromptEl);
+}
+unlockPromptEl = null;
 return;
 }
 
