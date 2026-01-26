@@ -15,27 +15,31 @@ let audioUnlocked = false;
 function unlockAudio() {
   if (audioUnlocked) return;
 
-  const audio = new Audio();
-  audio.muted = true;
+  try {
+    const audio = new Audio();
+    audio.muted = true;
 
-  audio.play()
-    .then(() => {
-      audio.pause();
-      audioUnlocked = true;
-      console.log("🔓 Audio unlocked");
-    })
-    .catch(() => {
-      console.warn("⚠️ Audio unlock failed, retrying...");
-    });
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          audio.pause();
+          audioUnlocked = true;
+          console.log("🔓 Audio unlocked");
+        })
+        .catch(() => {
+          // Silent catch - audio may already be unlocked
+        });
+    }
+  } catch (e) {
+    // Silent catch
+  }
 }
 
 // Unlock on any user interaction
 window.addEventListener("click", unlockAudio);
 window.addEventListener("keydown", unlockAudio);
 window.addEventListener("touchstart", unlockAudio);
-
-// Also try to unlock on page load
-window.addEventListener("load", unlockAudio);
 
 /* =========================
   SCENE
@@ -365,31 +369,9 @@ console.log("🤖 AI payload:", data);
 if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
-      console.log("🔔 Audio state:", { audioUnlocked });
+      // Try to unlock audio if not already unlocked
+      unlockAudio();
       
-      if (!audioUnlocked) {
-        console.warn("🔇 Audio not unlocked yet - trying to unlock now");
-        unlockAudio();
-        
-        // Retry audio playback after a short delay
-        setTimeout(() => {
-          if (audioUnlocked) {
-            audioPlayer.src = "data:audio/mp3;base64," + data.audio;
-            const playPromise = audioPlayer.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(err => {
-                console.error("🚫 Retry failed:", err);
-                notifyStorylineSpeechEnded();
-              });
-            }
-          } else {
-            console.warn("🔇 Audio still not unlocked, please interact with page first");
-            notifyStorylineSpeechEnded();
-          }
-        }, 100);
-        return;
-      }
-
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
       
       const playPromise = audioPlayer.play();
@@ -400,9 +382,14 @@ if (data.audio) {
           })
           .catch(err => {
             console.error("🚫 Audio playback blocked:", err);
-            console.error("Full error:", err);
-            stopLipSync();
-            notifyStorylineSpeechEnded();
+            // Retry after a short delay
+            setTimeout(() => {
+              audioPlayer.play().catch(retryErr => {
+                console.error("🚫 Retry failed:", retryErr);
+                stopLipSync();
+                notifyStorylineSpeechEnded();
+              });
+            }, 100);
           });
       }
  } else if (data.reply) {
