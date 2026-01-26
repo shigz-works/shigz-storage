@@ -51,15 +51,15 @@ function applyIdlePose(model) {
   model.traverse(obj => {
     if (!obj.isBone) return;
 
-    // Bring upper arms down to sides (rotation around X-axis)
+    // Bring upper arms down to sides (rotation around X-axis, negative to go down)
     if (obj.name.includes("UpperArm")) {
-      obj.rotation.x = Math.PI * 0.25; // ~45° down
+      obj.rotation.x = -Math.PI * 0.4; // ~-72° down
       obj.updateMatrixWorld(true);
     }
 
     // Bend elbows slightly
     if (obj.name.includes("LowerArm")) {
-      obj.rotation.x = Math.PI * 0.3; // ~54° bend
+      obj.rotation.x = -Math.PI * 0.35; // ~-63° bend
       obj.updateMatrixWorld(true);
     }
 
