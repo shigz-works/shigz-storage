@@ -13,8 +13,6 @@ const AI_ENDPOINT =
 let audioUnlocked = false;
 
 function unlockAudio() {
-  if (audioUnlocked) return;
-
   try {
     const audio = new Audio();
     audio.muted = true;
@@ -25,21 +23,29 @@ function unlockAudio() {
         .then(() => {
           audio.pause();
           audioUnlocked = true;
-          console.log("🔓 Audio unlocked");
+          console.log("🔓 Audio unlocked in iframe");
         })
-        .catch(() => {
-          // Silent catch - audio may already be unlocked
+        .catch((err) => {
+          console.log("⚠️ Audio unlock attempt:", err.message);
         });
     }
   } catch (e) {
-    // Silent catch
+    console.log("⚠️ Audio unlock exception:", e.message);
   }
 }
 
-// Unlock on any user interaction
-window.addEventListener("click", unlockAudio);
-window.addEventListener("keydown", unlockAudio);
-window.addEventListener("touchstart", unlockAudio);
+// Unlock on any user interaction - remove guards to allow multiple attempts
+window.addEventListener("click", () => unlockAudio());
+window.addEventListener("keydown", () => unlockAudio());
+window.addEventListener("touchstart", () => unlockAudio());
+
+// Try to unlock immediately and periodically
+unlockAudio();
+setInterval(() => {
+  if (!audioUnlocked) {
+    unlockAudio();
+  }
+}, 500);
 
 /* =========================
   SCENE
@@ -369,11 +375,12 @@ console.log("🤖 AI payload:", data);
 if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
-      // Try to unlock audio if not already unlocked
+      // Attempt to unlock audio
       unlockAudio();
       
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
       
+      // Attempt immediate playback
       const playPromise = audioPlayer.play();
       if (playPromise !== undefined) {
         playPromise
@@ -381,15 +388,35 @@ if (data.audio) {
             console.log("▶️ Audio playback started");
           })
           .catch(err => {
-            console.error("🚫 Audio playback blocked:", err);
-            // Retry after a short delay
-            setTimeout(() => {
-              audioPlayer.play().catch(retryErr => {
-                console.error("🚫 Retry failed:", retryErr);
-                stopLipSync();
-                notifyStorylineSpeechEnded();
-              });
-            }, 100);
+            console.warn("⚠️ Initial playback failed:", err.message);
+            
+            // Retry strategy: wait for unlock to complete
+            const maxRetries = 3;
+            let retryCount = 0;
+            
+            const retryPlay = () => {
+              retryCount++;
+              const retryPromise = audioPlayer.play();
+              
+              if (retryPromise !== undefined) {
+                retryPromise
+                  .then(() => {
+                    console.log("▶️ Audio playback started (retry " + retryCount + ")");
+                  })
+                  .catch(retryErr => {
+                    if (retryCount < maxRetries) {
+                      console.warn("⚠️ Retry " + retryCount + " failed, retrying...");
+                      setTimeout(retryPlay, 200);
+                    } else {
+                      console.error("🚫 Audio playback failed after retries:", retryErr.message);
+                      stopLipSync();
+                      notifyStorylineSpeechEnded();
+                    }
+                  });
+              }
+            };
+            
+            setTimeout(retryPlay, 300);
           });
       }
  } else if (data.reply) {
