@@ -188,6 +188,7 @@ let spineBone = null;
 let originalHeadRotation = null;
 let originalSpinePosition = null;
 let gestureIntervals = [];
+let isAvatarTalking = false;
 
 function setupIdleGestures() {
   if (!avatarRoot) return;
@@ -215,7 +216,7 @@ function setupIdleGestures() {
 
   // Head look around
   const headInterval = setInterval(() => {
-    if (headBone) {
+    if (headBone && !isAvatarTalking) {
       const time = Date.now() * 0.0008;
       headBone.rotation.y = Math.sin(time) * 0.15;
       headBone.rotation.x = Math.cos(time * 0.5) * 0.08;
@@ -248,19 +249,26 @@ if (i !== undefined) m.morphTargetInfluences[i] = 0;
 }
 
 function startLipSync() {
-talkingInterval = setInterval(() => {
-resetMouth();
-const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-mouthMeshes.forEach(m => {
-const i = m.morphTargetDictionary[s];
-if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
-});
-}, 120);
+  // Stop head gesture while talking
+  if (headBone) {
+    headBone.rotation.y = 0;
+    headBone.rotation.x = 0;
+    headBone.updateMatrixWorld(true);
+  }
+  
+  talkingInterval = setInterval(() => {
+    resetMouth();
+    const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+    mouthMeshes.forEach(m => {
+      const i = m.morphTargetDictionary[s];
+      if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
+    });
+  }, 120);
 }
 
 function stopLipSync() {
-clearInterval(talkingInterval);
-resetMouth();
+  clearInterval(talkingInterval);
+  resetMouth();
 }
 
 /* =========================
@@ -326,11 +334,13 @@ audioPlayer.muted = false;
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
+isAvatarTalking = true;
 startLipSync();
 };
 
 audioPlayer.onended = () => {
 console.log("🔇 Audio ended");
+isAvatarTalking = false;
 stopLipSync();
 
   // ⏳ Delay before reset + notify Storyline
