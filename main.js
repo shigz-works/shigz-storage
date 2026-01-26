@@ -145,15 +145,18 @@ blink();
 ========================= */
 let headBone = null;
 let spineBone = null;
+let leftHandBone = null;
+let rightHandBone = null;
 let originalHeadRotation = null;
 let originalSpinePosition = null;
 let gestureIntervals = [];
+let handGestureInterval = null;
 let isAvatarTalking = false;
 
 function setupIdleGestures() {
   if (!avatarRoot) return;
   
-  // Find head and spine bones
+  // Find head, spine, and hand bones
   avatarRoot.traverse(obj => {
     if (obj.isBone) {
       if (obj.name.includes("Head") && !obj.name.includes("Eye")) {
@@ -161,6 +164,12 @@ function setupIdleGestures() {
       }
       if (obj.name.includes("Chest")) {
         spineBone = obj;
+      }
+      if (obj.name.includes("Hand") && obj.name.includes("L")) {
+        leftHandBone = obj;
+      }
+      if (obj.name.includes("Hand") && obj.name.includes("R")) {
+        rightHandBone = obj;
       }
     }
   });
@@ -208,20 +217,65 @@ if (i !== undefined) m.morphTargetInfluences[i] = 0;
 );
 }
 
+function startHandGesture() {
+  if (!leftHandBone || !rightHandBone) return;
+  
+  handGestureInterval = setInterval(() => {
+    const time = Date.now() * 0.002;
+    
+    // Left hand: rotate up and down
+    leftHandBone.rotation.z = Math.sin(time) * 0.3;
+    leftHandBone.rotation.x = Math.cos(time * 0.7) * 0.2;
+    leftHandBone.updateMatrixWorld(true);
+    
+    // Right hand: opposite movement
+    rightHandBone.rotation.z = Math.sin(time + Math.PI) * 0.3;
+    rightHandBone.rotation.x = Math.cos(time * 0.7 + Math.PI) * 0.2;
+    rightHandBone.updateMatrixWorld(true);
+  }, 50);
+}
+
+function stopHandGesture() {
+  clearInterval(handGestureInterval);
+  
+  // Reset hands to neutral
+  if (leftHandBone) {
+    leftHandBone.rotation.z = 0;
+    leftHandBone.rotation.x = 0;
+    leftHandBone.updateMatrixWorld(true);
+  }
+  if (rightHandBone) {
+    rightHandBone.rotation.z = 0;
+    rightHandBone.rotation.x = 0;
+    rightHandBone.updateMatrixWorld(true);
+  }
+}
+
 function startLipSync() {
-talkingInterval = setInterval(() => {
-resetMouth();
-const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-mouthMeshes.forEach(m => {
-const i = m.morphTargetDictionary[s];
-if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
-});
-}, 120);
+  // Stop head gesture while talking
+  if (headBone) {
+    headBone.rotation.y = 0;
+    headBone.rotation.x = 0;
+    headBone.updateMatrixWorld(true);
+  }
+  
+  // Start hand gestures while talking
+  startHandGesture();
+  
+  talkingInterval = setInterval(() => {
+    resetMouth();
+    const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+    mouthMeshes.forEach(m => {
+      const i = m.morphTargetDictionary[s];
+      if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
+    });
+  }, 120);
 }
 
 function stopLipSync() {
-clearInterval(talkingInterval);
-resetMouth();
+  clearInterval(talkingInterval);
+  resetMouth();
+  stopHandGesture();
 }
 
 /* =========================
