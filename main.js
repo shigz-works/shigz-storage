@@ -364,8 +364,11 @@ function showUnlockPrompt(onUnlocked) {
   unlockPromptEl.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
   unlockPromptEl.style.zIndex = "9999";
 
+  console.log("🟡 Showing in-iframe unlock prompt");
+
   function handleUnlock(event) {
     event.preventDefault();
+    console.log("🟢 Unlock prompt tapped");
     unlockAudio();
     if (onUnlocked) onUnlocked();
     if (unlockPromptEl && unlockPromptEl.parentElement) {
@@ -381,6 +384,7 @@ function showUnlockPrompt(onUnlocked) {
 
 function playAudioWithUnlock() {
   const attemptPlay = () => {
+    console.log("▶️ Attempting audio play");
     audioPlayer.play().catch(err => {
       console.warn("⚠️ Playback error:", err.message);
       stopLipSync();
