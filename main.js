@@ -13,39 +13,23 @@ const AI_ENDPOINT =
 let audioUnlocked = false;
 
 function unlockAudio() {
+  if (audioUnlocked) return;
+
   try {
     const audio = new Audio();
     audio.muted = true;
-
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          audio.pause();
-          audioUnlocked = true;
-          console.log("🔓 Audio unlocked in iframe");
-        })
-        .catch((err) => {
-          console.log("⚠️ Audio unlock attempt:", err.message);
-        });
-    }
-  } catch (e) {
-    console.log("⚠️ Audio unlock exception:", e.message);
-  }
+    audio.play().then(() => {
+      audio.pause();
+      audioUnlocked = true;
+      console.log("🔓 Audio unlocked");
+    }).catch(() => {});
+  } catch (e) {}
 }
 
-// Unlock on any user interaction - remove guards to allow multiple attempts
-window.addEventListener("click", () => unlockAudio());
-window.addEventListener("keydown", () => unlockAudio());
-window.addEventListener("touchstart", () => unlockAudio());
-
-// Try to unlock immediately and periodically
-unlockAudio();
-setInterval(() => {
-  if (!audioUnlocked) {
-    unlockAudio();
-  }
-}, 500);
+// Unlock on user interaction
+document.addEventListener("click", unlockAudio, { once: true });
+document.addEventListener("keydown", unlockAudio, { once: true });
+document.addEventListener("touchstart", unlockAudio, { once: true });
 
 /* =========================
   SCENE
@@ -324,13 +308,10 @@ if (avatarRoot) applyIdlePose(avatarRoot);
 
 /* =========================
    CLOUD TTS AUDIO PLAYER
-   CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
 audioPlayer.preload = "auto";
-audioPlayer.playsInline = true;
-audioPlayer.muted = false;
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
@@ -342,8 +323,6 @@ audioPlayer.onended = () => {
 console.log("🔇 Audio ended");
 isAvatarTalking = false;
 stopLipSync();
-
-  // ⏳ Delay before reset + notify Storyline
 setTimeout(() => {
 resetAvatar();
 notifyStorylineSpeechEnded();
@@ -351,9 +330,10 @@ notifyStorylineSpeechEnded();
 };
 
 audioPlayer.onerror = (e) => {
-  console.error("❌ Audio element error:", e);
-  stopLipSync();
-  notifyStorylineSpeechEnded();
+console.error("❌ Audio error:", e);
+isAvatarTalking = false;
+stopLipSync();
+notifyStorylineSpeechEnded();
 };
 
 /* =========================
@@ -385,50 +365,19 @@ console.log("🤖 AI payload:", data);
 if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
-      // Attempt to unlock audio
-      unlockAudio();
-      
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
       
-      // Attempt immediate playback
-      const playPromise = audioPlayer.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            console.log("▶️ Audio playback started");
-          })
-          .catch(err => {
-            console.warn("⚠️ Initial playback failed:", err.message);
-            
-            // Retry strategy: wait for unlock to complete
-            const maxRetries = 3;
-            let retryCount = 0;
-            
-            const retryPlay = () => {
-              retryCount++;
-              const retryPromise = audioPlayer.play();
-              
-              if (retryPromise !== undefined) {
-                retryPromise
-                  .then(() => {
-                    console.log("▶️ Audio playback started (retry " + retryCount + ")");
-                  })
-                  .catch(retryErr => {
-                    if (retryCount < maxRetries) {
-                      console.warn("⚠️ Retry " + retryCount + " failed, retrying...");
-                      setTimeout(retryPlay, 200);
-                    } else {
-                      console.error("🚫 Audio playback failed after retries:", retryErr.message);
-                      stopLipSync();
-                      notifyStorylineSpeechEnded();
-                    }
-                  });
-              }
-            };
-            
-            setTimeout(retryPlay, 300);
+      audioPlayer.play().catch(err => {
+        console.warn("⚠️ Playback error:", err.message);
+        // Try again after a brief delay if audio wasn't unlocked
+        setTimeout(() => {
+          audioPlayer.play().catch(retryErr => {
+            console.error("🚫 Playback failed:", retryErr.message);
+            stopLipSync();
+            notifyStorylineSpeechEnded();
           });
-      }
+        }, 200);
+      });
  } else if (data.reply) {
        // Fallback: browser TTS if backend did not return audio
        console.warn("⚠️ No audio payload; using browser TTS fallback");
