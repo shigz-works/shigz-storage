@@ -38,37 +38,34 @@ document.body.appendChild(renderer.domElement);
 /* =========================
   LIGHTING
 ========================= */
-scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
-dirLight.position.set(2, 4, 3);
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.8));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(0, 5, 2);
 scene.add(dirLight);
 
 /* =========================
   IDLE POSE (NO T-POSE)
 ========================= */
 function applyIdlePose(model) {
-  const shoulderTilt = Math.PI * 0.12; // ~21.6° clavicle drop
-  const upperArmDrop = Math.PI * 0.55; // ~99° bring arms to sides
-  const elbowBend   = Math.PI * 0.25; // ~45° slight elbow bend
-
   model.traverse(obj => {
     if (!obj.isBone) return;
 
-    // Clavicle tilt to bring shoulders down a bit
-    if (obj.name.includes("Shoulder")) {
-      obj.rotation.z = obj.name.includes("L") ? -shoulderTilt : shoulderTilt;
-      obj.updateMatrixWorld(true);
-    }
-
-    // Swing arms down from T-pose to side pose
+    // Bring upper arms down to sides (rotation around X-axis)
     if (obj.name.includes("UpperArm")) {
-      obj.rotation.z = obj.name.includes("L") ? -upperArmDrop : upperArmDrop;
+      obj.rotation.x = Math.PI * 0.25; // ~45° down
       obj.updateMatrixWorld(true);
     }
 
-    // Light elbow bend so they are not locked straight
+    // Bend elbows slightly
     if (obj.name.includes("LowerArm")) {
-      obj.rotation.z = obj.name.includes("L") ? -elbowBend : elbowBend;
+      obj.rotation.x = Math.PI * 0.3; // ~54° bend
+      obj.updateMatrixWorld(true);
+    }
+
+    // Rotate shoulders inward slightly
+    if (obj.name.includes("Shoulder")) {
+      obj.rotation.y = obj.name.includes("L") ? Math.PI * 0.1 : -Math.PI * 0.1;
       obj.updateMatrixWorld(true);
     }
   });
