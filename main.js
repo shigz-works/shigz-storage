@@ -47,13 +47,25 @@ scene.add(dirLight);
   IDLE POSE (NO T-POSE)
 ========================= */
 function applyIdlePose(model) {
-model.traverse(obj => {
-if (!obj.isBone) return;
-if (obj.name.includes("UpperArm"))
-obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
-if (obj.name.includes("LowerArm"))
-obj.rotation.z = 0.1;
-});
+  let bonesFound = 0;
+  model.traverse(obj => {
+    if (!obj.isBone) return;
+    
+    console.log("🦴 Bone found:", obj.name);
+    bonesFound++;
+    
+    if (obj.name.includes("UpperArm")) {
+      obj.rotation.z = obj.name.includes("Left") ? 0.6 : -0.6;
+      obj.updateMatrix();
+      console.log("✅ Applied UpperArm rotation:", obj.name);
+    }
+    if (obj.name.includes("LowerArm")) {
+      obj.rotation.z = 0.1;
+      obj.updateMatrix();
+      console.log("✅ Applied LowerArm rotation:", obj.name);
+    }
+  });
+  console.log(`🦴 Total bones found: ${bonesFound}`);
 }
 
 /* =========================
