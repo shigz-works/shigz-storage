@@ -139,7 +139,6 @@ setTimeout(blink, 3000 + Math.random() * 3000);
 }
 blink();
 }
-}
 
 /* =========================
   IDLE GESTURES (Head, Breathing, Shoulders)
@@ -148,6 +147,7 @@ let headBone = null;
 let spineBone = null;
 let originalHeadRotation = null;
 let originalSpinePosition = null;
+let gestureIntervals = [];
 
 function setupIdleGestures() {
   if (!avatarRoot) return;
@@ -158,21 +158,23 @@ function setupIdleGestures() {
       if (obj.name.includes("Head") && !obj.name.includes("Eye")) {
         headBone = obj;
       }
-      if (obj.name.includes("Chest") || obj.name.includes("Spine")) {
+      if (obj.name.includes("Chest")) {
         spineBone = obj;
       }
     }
   });
 
+  if (!headBone || !spineBone) return;
+
   if (headBone) {
-    originalHeadRotation = headBone.rotation.clone();
+    originalHeadRotation = { y: 0, x: 0 };
   }
   if (spineBone) {
-    originalSpinePosition = spineBone.position.clone();
+    originalSpinePosition = spineBone.position.y;
   }
 
   // Head look around
-  setInterval(() => {
+  const headInterval = setInterval(() => {
     if (headBone) {
       const time = Date.now() * 0.0008;
       headBone.rotation.y = Math.sin(time) * 0.15;
@@ -180,35 +182,41 @@ function setupIdleGestures() {
       headBone.updateMatrixWorld(true);
     }
   }, 50);
+  gestureIntervals.push(headInterval);
 
   // Breathing animation (subtle up/down movement)
-  setInterval(() => {
+  const breathInterval = setInterval(() => {
     if (spineBone) {
       const time = Date.now() * 0.0006;
       const breathAmount = Math.sin(time) * 0.02;
-      spineBone.position.y = (originalSpinePosition?.y || 0) + breathAmount;
+      spineBone.position.y = originalSpinePosition + breathAmount;
       spineBone.updateMatrixWorld(true);
     }
   }, 50);
+  gestureIntervals.push(breathInterval);
 
   // Shoulder shrug
-  setInterval(() => {
+  const shrugInterval = setInterval(() => {
     if (avatarRoot) {
       avatarRoot.traverse(obj => {
         if (obj.isBone && obj.name.includes("Shoulder")) {
           const shrugging = Math.random() < 0.3;
           if (shrugging) {
+            const originalY = obj.position.y;
             obj.position.y += Math.random() * 0.05;
             obj.updateMatrixWorld(true);
             setTimeout(() => {
-              obj.position.y -= Math.random() * 0.05;
-              obj.updateMatrixWorld(true);
+              if (obj) {
+                obj.position.y = originalY;
+                obj.updateMatrixWorld(true);
+              }
             }, 300);
           }
         }
       });
     }
   }, 4000);
+  gestureIntervals.push(shrugInterval);
 }
 
 /* =========================
@@ -286,6 +294,16 @@ if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
 });
 // Reset mouth
 resetMouth();
+// Reset head and spine to idle pose
+if (headBone) {
+headBone.rotation.y = 0;
+headBone.rotation.x = 0;
+headBone.updateMatrixWorld(true);
+}
+if (spineBone && originalSpinePosition) {
+spineBone.position.y = originalSpinePosition;
+spineBone.updateMatrixWorld(true);
+}
 // Reapply idle pose
 if (avatarRoot) applyIdlePose(avatarRoot);
 }
