@@ -38,8 +38,8 @@ document.body.appendChild(renderer.domElement);
 /* =========================
   LIGHTING
 ========================= */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 4.0);
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+const dirLight = new THREE.DirectionalLight(0xffffff, 5.5);
 dirLight.position.set(0, 3, 5);
 scene.add(dirLight);
 
