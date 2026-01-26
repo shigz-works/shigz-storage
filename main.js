@@ -8,6 +8,30 @@ const AI_ENDPOINT =
 "https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
 
 /* =========================
+  AUDIO UNLOCK
+========================= */
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+
+  const audio = new Audio();
+  audio.muted = true;
+
+  audio.play()
+    .then(() => {
+      audio.pause();
+      audioUnlocked = true;
+      console.log("🔓 Audio unlocked");
+    })
+    .catch(() => {});
+}
+
+// Unlock on any user interaction
+window.addEventListener("click", unlockAudio, { once: true });
+window.addEventListener("keydown", unlockAudio, { once: true });
+
+/* =========================
   SCENE
 ========================= */
 const scene = new THREE.Scene();
@@ -184,16 +208,6 @@ function setupIdleGestures() {
   }, 50);
   gestureIntervals.push(headInterval);
 
-  // Breathing animation (subtle up/down movement)
-  const breathInterval = setInterval(() => {
-    if (spineBone) {
-      const time = Date.now() * 0.0006;
-      const breathAmount = Math.sin(time) * 0.02;
-      spineBone.position.y = originalSpinePosition + breathAmount;
-      spineBone.updateMatrixWorld(true);
-    }
-  }, 50);
-  gestureIntervals.push(breathInterval);
 
   // Shoulder shrug
   const shrugInterval = setInterval(() => {
@@ -369,6 +383,12 @@ console.log("🤖 AI payload:", data);
 if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
+      if (!audioUnlocked) {
+        console.warn("🔇 Audio not unlocked yet - waiting for user interaction");
+        notifyStorylineSpeechEnded();
+        return;
+      }
+
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
       
       const playPromise = audioPlayer.play();
