@@ -38,9 +38,9 @@ document.body.appendChild(renderer.domElement);
 /* =========================
   LIGHTING
 ========================= */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.8));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 1.2));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
 dirLight.position.set(0, 5, 2);
 scene.add(dirLight);
 
