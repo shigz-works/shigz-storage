@@ -103,6 +103,7 @@ blinkMeshes.push(obj);
 });
 
 setupBlinking();
+setupIdleGestures();
 console.log("✅ Avatar loaded & ready");
 });
 
@@ -137,6 +138,77 @@ mesh.morphTargetDictionary[k]
 setTimeout(blink, 3000 + Math.random() * 3000);
 }
 blink();
+}
+}
+
+/* =========================
+  IDLE GESTURES (Head, Breathing, Shoulders)
+========================= */
+let headBone = null;
+let spineBone = null;
+let originalHeadRotation = null;
+let originalSpinePosition = null;
+
+function setupIdleGestures() {
+  if (!avatarRoot) return;
+  
+  // Find head and spine bones
+  avatarRoot.traverse(obj => {
+    if (obj.isBone) {
+      if (obj.name.includes("Head") && !obj.name.includes("Eye")) {
+        headBone = obj;
+      }
+      if (obj.name.includes("Chest") || obj.name.includes("Spine")) {
+        spineBone = obj;
+      }
+    }
+  });
+
+  if (headBone) {
+    originalHeadRotation = headBone.rotation.clone();
+  }
+  if (spineBone) {
+    originalSpinePosition = spineBone.position.clone();
+  }
+
+  // Head look around
+  setInterval(() => {
+    if (headBone) {
+      const time = Date.now() * 0.0008;
+      headBone.rotation.y = Math.sin(time) * 0.15;
+      headBone.rotation.x = Math.cos(time * 0.5) * 0.08;
+      headBone.updateMatrixWorld(true);
+    }
+  }, 50);
+
+  // Breathing animation (subtle up/down movement)
+  setInterval(() => {
+    if (spineBone) {
+      const time = Date.now() * 0.0006;
+      const breathAmount = Math.sin(time) * 0.02;
+      spineBone.position.y = (originalSpinePosition?.y || 0) + breathAmount;
+      spineBone.updateMatrixWorld(true);
+    }
+  }, 50);
+
+  // Shoulder shrug
+  setInterval(() => {
+    if (avatarRoot) {
+      avatarRoot.traverse(obj => {
+        if (obj.isBone && obj.name.includes("Shoulder")) {
+          const shrugging = Math.random() < 0.3;
+          if (shrugging) {
+            obj.position.y += Math.random() * 0.05;
+            obj.updateMatrixWorld(true);
+            setTimeout(() => {
+              obj.position.y -= Math.random() * 0.05;
+              obj.updateMatrixWorld(true);
+            }, 300);
+          }
+        }
+      });
+    }
+  }, 4000);
 }
 
 /* =========================
