@@ -48,6 +48,33 @@ dirLight.position.set(0, 3, 5);
 scene.add(dirLight);
 
 /* =========================
+  IDLE POSE (NO T-POSE)
+========================= */
+function applyIdlePose(model) {
+  model.traverse(obj => {
+    if (!obj.isBone) return;
+
+    // Bring upper arms down to sides (rotation around X-axis, negative to go down)
+    if (obj.name.includes("UpperArm")) {
+      obj.rotation.x = -Math.PI * 0.4; // ~-72° down
+      obj.updateMatrixWorld(true);
+    }
+
+    // Bend elbows slightly
+    if (obj.name.includes("LowerArm")) {
+      obj.rotation.x = -Math.PI * 0.35; // ~-63° bend
+      obj.updateMatrixWorld(true);
+    }
+
+    // Rotate shoulders inward slightly
+    if (obj.name.includes("Shoulder")) {
+      obj.rotation.y = obj.name.includes("L") ? Math.PI * 0.1 : -Math.PI * 0.1;
+      obj.updateMatrixWorld(true);
+    }
+  });
+}
+
+/* =========================
   AVATAR
 ========================= */
 let avatarRoot = null;
