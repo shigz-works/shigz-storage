@@ -32,15 +32,15 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.8;
 document.body.appendChild(renderer.domElement);
 
 /* =========================
   LIGHTING
 ========================= */
-scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 1.2));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.7));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
 dirLight.position.set(0, 5, 2);
 scene.add(dirLight);
 
