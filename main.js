@@ -8,30 +8,6 @@ const AI_ENDPOINT =
 "https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
 
 /* =========================
-  AUDIO UNLOCK
-========================= */
-let audioUnlocked = false;
-
-function unlockAudio() {
-  if (audioUnlocked) return;
-
-  try {
-    const audio = new Audio();
-    audio.muted = true;
-    audio.play().then(() => {
-      audio.pause();
-      audioUnlocked = true;
-      console.log("🔓 Audio unlocked");
-    }).catch(() => {});
-  } catch (e) {}
-}
-
-// Unlock on user interaction
-document.addEventListener("click", unlockAudio, { once: true });
-document.addEventListener("keydown", unlockAudio, { once: true });
-document.addEventListener("touchstart", unlockAudio, { once: true });
-
-/* =========================
   SCENE
 ========================= */
 const scene = new THREE.Scene();
@@ -233,26 +209,19 @@ if (i !== undefined) m.morphTargetInfluences[i] = 0;
 }
 
 function startLipSync() {
-  // Stop head gesture while talking
-  if (headBone) {
-    headBone.rotation.y = 0;
-    headBone.rotation.x = 0;
-    headBone.updateMatrixWorld(true);
-  }
-  
-  talkingInterval = setInterval(() => {
-    resetMouth();
-    const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
-    mouthMeshes.forEach(m => {
-      const i = m.morphTargetDictionary[s];
-      if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
-    });
-  }, 120);
+talkingInterval = setInterval(() => {
+resetMouth();
+const s = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+mouthMeshes.forEach(m => {
+const i = m.morphTargetDictionary[s];
+if (i !== undefined) m.morphTargetInfluences[i] = 0.8;
+});
+}, 120);
 }
 
 function stopLipSync() {
-  clearInterval(talkingInterval);
-  resetMouth();
+clearInterval(talkingInterval);
+resetMouth();
 }
 
 /* =========================
@@ -292,26 +261,19 @@ if (i !== undefined) mesh.morphTargetInfluences[i] = 0;
 });
 // Reset mouth
 resetMouth();
-// Reset head and spine to idle pose
-if (headBone) {
-headBone.rotation.y = 0;
-headBone.rotation.x = 0;
-headBone.updateMatrixWorld(true);
-}
-if (spineBone && originalSpinePosition) {
-spineBone.position.y = originalSpinePosition;
-spineBone.updateMatrixWorld(true);
-}
 // Reapply idle pose
 if (avatarRoot) applyIdlePose(avatarRoot);
 }
 
 /* =========================
    CLOUD TTS AUDIO PLAYER
+   CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
 audioPlayer.preload = "auto";
+audioPlayer.playsInline = true;
+audioPlayer.muted = false;
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
@@ -323,6 +285,8 @@ audioPlayer.onended = () => {
 console.log("🔇 Audio ended");
 isAvatarTalking = false;
 stopLipSync();
+
+  // ⏳ Delay before reset + notify Storyline
 setTimeout(() => {
 resetAvatar();
 notifyStorylineSpeechEnded();
@@ -330,80 +294,11 @@ notifyStorylineSpeechEnded();
 };
 
 audioPlayer.onerror = (e) => {
-console.error("❌ Audio error:", e);
-isAvatarTalking = false;
-stopLipSync();
-notifyStorylineSpeechEnded();
+  console.error("❌ Audio element error:", e);
+  isAvatarTalking = false;
+  stopLipSync();
+  notifyStorylineSpeechEnded();
 };
-
-// Simple unlock prompt to guarantee a user gesture inside the iframe
-let unlockPromptEl = null;
-
-function showUnlockPrompt(onUnlocked) {
-  // Reuse prompt if already visible
-  if (unlockPromptEl) {
-    unlockPromptEl.onclick = handleUnlock;
-    unlockPromptEl.ontouchstart = handleUnlock;
-    return;
-  }
-
-  unlockPromptEl = document.createElement("button");
-  unlockPromptEl.textContent = "Tap to enable sound";
-  unlockPromptEl.style.position = "absolute";
-  unlockPromptEl.style.left = "50%";
-  unlockPromptEl.style.bottom = "24px";
-  unlockPromptEl.style.transform = "translateX(-50%)";
-  unlockPromptEl.style.padding = "12px 16px";
-  unlockPromptEl.style.fontSize = "16px";
-  unlockPromptEl.style.fontFamily = "'Segoe UI', sans-serif";
-  unlockPromptEl.style.border = "none";
-  unlockPromptEl.style.borderRadius = "10px";
-  unlockPromptEl.style.background = "#111";
-  unlockPromptEl.style.color = "#fff";
-  unlockPromptEl.style.cursor = "pointer";
-  unlockPromptEl.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
-  unlockPromptEl.style.zIndex = "9999";
-
-  console.log("🟡 Showing in-iframe unlock prompt");
-
-  function handleUnlock(event) {
-    event.preventDefault();
-    console.log("🟢 Unlock prompt tapped");
-    unlockAudio();
-    if (onUnlocked) onUnlocked();
-    if (unlockPromptEl && unlockPromptEl.parentElement) {
-      unlockPromptEl.parentElement.removeChild(unlockPromptEl);
-    }
-    unlockPromptEl = null;
-  }
-
-  unlockPromptEl.addEventListener("click", handleUnlock, { once: true });
-  unlockPromptEl.addEventListener("touchstart", handleUnlock, { once: true });
-  document.body.appendChild(unlockPromptEl);
-}
-
-function playAudioWithUnlock() {
-  const attemptPlay = () => {
-    console.log("▶️ Attempting audio play");
-    audioPlayer.play().catch(err => {
-      console.warn("⚠️ Playback error:", err.message);
-      stopLipSync();
-      notifyStorylineSpeechEnded();
-    });
-  };
-
-  // If we already unlocked, just play
-  if (audioUnlocked) {
-    attemptPlay();
-    return;
-  }
-
-  // Require an explicit tap inside the iframe to satisfy browser policy
-  showUnlockPrompt(() => {
-    // Run play inside the same user gesture
-    attemptPlay();
-  });
-}
 
 /* =========================
   STORYLINE CALLBACK
@@ -435,7 +330,20 @@ if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
-      playAudioWithUnlock();
+      
+      const playPromise = audioPlayer.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log("▶️ Audio playback started");
+          })
+          .catch(err => {
+            console.error("🚫 Audio playback blocked:", err);
+            console.error("Full error:", err);
+            stopLipSync();
+            notifyStorylineSpeechEnded();
+          });
+      }
  } else if (data.reply) {
        // Fallback: browser TTS if backend did not return audio
        console.warn("⚠️ No audio payload; using browser TTS fallback");
@@ -477,17 +385,6 @@ notifyStorylineSpeechEnded();
 ========================= */
 window.addEventListener("message", (event) => {
 if (!event.data || !event.data.type) return;
-
-// Handle audio unlock from Storyline
-if (event.data.type === "UNLOCK_AUDIO") {
-console.log("🔓 Audio unlocked by Storyline");
-unlockAudio();
-if (unlockPromptEl && unlockPromptEl.parentElement) {
-  unlockPromptEl.parentElement.removeChild(unlockPromptEl);
-}
-unlockPromptEl = null;
-return;
-}
 
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
