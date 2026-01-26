@@ -461,6 +461,13 @@ notifyStorylineSpeechEnded();
 window.addEventListener("message", (event) => {
 if (!event.data || !event.data.type) return;
 
+// Handle audio unlock from Storyline
+if (event.data.type === "UNLOCK_AUDIO") {
+console.log("🔓 Audio unlocked by Storyline");
+audioUnlocked = true;
+return;
+}
+
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
 sendToAI(event.data.text);
