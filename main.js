@@ -24,12 +24,18 @@ function unlockAudio() {
       audioUnlocked = true;
       console.log("🔓 Audio unlocked");
     })
-    .catch(() => {});
+    .catch(() => {
+      console.warn("⚠️ Audio unlock failed, retrying...");
+    });
 }
 
 // Unlock on any user interaction
-window.addEventListener("click", unlockAudio, { once: true });
-window.addEventListener("keydown", unlockAudio, { once: true });
+window.addEventListener("click", unlockAudio);
+window.addEventListener("keydown", unlockAudio);
+window.addEventListener("touchstart", unlockAudio);
+
+// Also try to unlock on page load
+window.addEventListener("load", unlockAudio);
 
 /* =========================
   SCENE
@@ -207,30 +213,6 @@ function setupIdleGestures() {
     }
   }, 50);
   gestureIntervals.push(headInterval);
-
-
-  // Shoulder shrug
-  const shrugInterval = setInterval(() => {
-    if (avatarRoot) {
-      avatarRoot.traverse(obj => {
-        if (obj.isBone && obj.name.includes("Shoulder")) {
-          const shrugging = Math.random() < 0.3;
-          if (shrugging) {
-            const originalY = obj.position.y;
-            obj.position.y += Math.random() * 0.05;
-            obj.updateMatrixWorld(true);
-            setTimeout(() => {
-              if (obj) {
-                obj.position.y = originalY;
-                obj.updateMatrixWorld(true);
-              }
-            }, 300);
-          }
-        }
-      });
-    }
-  }, 4000);
-  gestureIntervals.push(shrugInterval);
 }
 
 /* =========================
@@ -383,9 +365,28 @@ console.log("🤖 AI payload:", data);
 if (data.emotion) setEmotion(data.emotion);
 
 if (data.audio) {
+      console.log("🔔 Audio state:", { audioUnlocked });
+      
       if (!audioUnlocked) {
-        console.warn("🔇 Audio not unlocked yet - waiting for user interaction");
-        notifyStorylineSpeechEnded();
+        console.warn("🔇 Audio not unlocked yet - trying to unlock now");
+        unlockAudio();
+        
+        // Retry audio playback after a short delay
+        setTimeout(() => {
+          if (audioUnlocked) {
+            audioPlayer.src = "data:audio/mp3;base64," + data.audio;
+            const playPromise = audioPlayer.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(err => {
+                console.error("🚫 Retry failed:", err);
+                notifyStorylineSpeechEnded();
+              });
+            }
+          } else {
+            console.warn("🔇 Audio still not unlocked, please interact with page first");
+            notifyStorylineSpeechEnded();
+          }
+        }, 100);
         return;
       }
 
