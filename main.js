@@ -275,7 +275,9 @@ if (avatarRoot) applyIdlePose(avatarRoot);
    CLOUD TTS AUDIO PLAYER
    CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
-let audioUnlocked = false;
+// 🔑 Check if audio was already unlocked this session
+let audioUnlocked = sessionStorage.getItem('audioUnlocked') === 'true';
+
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
 audioPlayer.preload = "auto";
@@ -284,6 +286,8 @@ audioPlayer.muted = false;
 
 // Silent audio data URI (0.1s of silence)
 const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
+
+console.log('🔍 Session audio status:', audioUnlocked ? 'Already unlocked' : 'Needs unlock');
 
 // 🔊 CREATE AUDIO UNLOCK OVERLAY (CROSS-BROWSER COMPATIBLE)
 const overlay = document.createElement('div');
@@ -332,6 +336,12 @@ overlay.innerHTML = `
 `;
 document.body.appendChild(overlay);
 
+// 🔑 Hide overlay if already unlocked this session
+if (audioUnlocked) {
+  overlay.style.display = 'none';
+  console.log('✅ Audio already unlocked this session - overlay hidden');
+}
+
 // Add animation styles
 const style = document.createElement('style');
 style.textContent = `
@@ -366,8 +376,10 @@ async function unlockAudio() {
     }
     
     audioUnlocked = true;
+    sessionStorage.setItem('audioUnlocked', 'true');
     overlay.style.display = 'none';
-    console.log('🔓 Audio context unlocked successfully');
+    overlay.remove(); // Completely remove from DOM
+    console.log('🔓 Audio context unlocked successfully (saved to session)');
     
     // Also unlock Web Audio API context if exists
     if (window.AudioContext || window.webkitAudioContext) {
@@ -588,8 +600,8 @@ if (!event.data || !event.data.type) return;
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
 
-// 🚨 Show overlay if audio not unlocked yet
-if (!audioUnlocked && overlay.style.display === 'none') {
+// 🚨 Show overlay only if audio not unlocked AND overlay still exists
+if (!audioUnlocked && overlay && overlay.style.display === 'none') {
   overlay.style.display = 'block';
   console.warn("⚠️ Audio not unlocked - showing overlay");
 }
