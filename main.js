@@ -377,8 +377,9 @@ async function unlockAudio() {
     
     audioUnlocked = true;
     sessionStorage.setItem('audioUnlocked', 'true');
-    overlay.style.display = 'none';
-    overlay.remove(); // Completely remove from DOM
+    const overlayElement = overlay;
+    overlayElement.style.display = 'none';
+    setTimeout(() => overlayElement.remove(), 300); // Remove after fade
     console.log('🔓 Audio context unlocked successfully (saved to session)');
     
     // Also unlock Web Audio API context if exists
@@ -600,8 +601,8 @@ if (!event.data || !event.data.type) return;
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
 
-// 🚨 Show overlay only if audio not unlocked AND overlay still exists
-if (!audioUnlocked && overlay && overlay.style.display === 'none') {
+// Only show overlay if audio was never unlocked in this session
+if (!audioUnlocked && overlay && overlay.parentElement) {
   overlay.style.display = 'block';
   console.warn("⚠️ Audio not unlocked - showing overlay");
 }
