@@ -275,11 +275,15 @@ if (avatarRoot) applyIdlePose(avatarRoot);
    CLOUD TTS AUDIO PLAYER
    CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
+let audioUnlocked = false;
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
 audioPlayer.preload = "auto";
 audioPlayer.playsInline = true;
 audioPlayer.muted = false;
+
+// Silent audio data URI (0.1s of silence)
+const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
@@ -428,20 +432,19 @@ if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
 
 // 🔓 UNLOCK AUDIO ON USER INTERACTION
-// This must happen synchronously within the user gesture
-try {
-  const unlockPromise = audioPlayer.play();
-  if (unlockPromise !== undefined) {
-    unlockPromise.then(() => {
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
-      console.log("🔓 Audio unlocked");
+// Load and play silent audio to unlock audio context
+if (!audioUnlocked) {
+  try {
+    audioPlayer.src = SILENT_AUDIO;
+    audioPlayer.play().then(() => {
+      audioUnlocked = true;
+      console.log("🔓 Audio context unlocked");
     }).catch(() => {
-      // Ignore unlock errors
+      console.warn("⚠️ Could not unlock audio");
     });
+  } catch (e) {
+    console.warn("⚠️ Audio unlock error:", e);
   }
-} catch (e) {
-  // Ignore unlock errors
 }
 
 sendToAI(event.data.text);
