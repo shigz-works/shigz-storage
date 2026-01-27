@@ -231,6 +231,39 @@ resetMouth();
 }
 
 /* =========================
+  BROWSER TTS HELPER
+========================= */
+function speakWithBrowserTTS(text) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+
+  utterance.onstart = () => {
+    isAvatarTalking = true;
+    startLipSync();
+  };
+
+  utterance.onend = () => {
+    isAvatarTalking = false;
+    stopLipSync();
+    setTimeout(() => {
+      resetAvatar();
+      notifyStorylineSpeechEnded();
+    }, 600);
+  };
+
+  utterance.onerror = (e) => {
+    console.error("❌ Browser TTS error:", e);
+    isAvatarTalking = false;
+    stopLipSync();
+    resetAvatar();
+    notifyStorylineSpeechEnded();
+  };
+
+  speechSynthesis.speak(utterance);
+}
+
+/* =========================
   EMOTION SYSTEM
 ========================= */
 const emotionMap = {
@@ -287,133 +320,65 @@ audioPlayer.muted = false;
 // Silent audio data URI (0.1s of silence)
 const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
 
-console.log('🔍 Session audio status:', audioUnlocked ? 'Already unlocked' : 'Needs unlock');
+console.log('🔍 Audio status:', audioUnlocked ? 'Unlocked' : 'Needs unlock');
 
-// 🔊 CREATE AUDIO UNLOCK OVERLAY (CROSS-BROWSER COMPATIBLE)
-const overlay = document.createElement('div');
-overlay.id = 'audio-unlock-overlay';
-overlay.innerHTML = `
-  <div style="
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    cursor: pointer;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    -webkit-tap-highlight-color: transparent;
-  ">
-    <div style="
-      background: white;
-      padding: 40px 60px;
-      border-radius: 15px;
-      text-align: center;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-      max-width: 90%;
-      animation: fadeIn 0.3s ease;
-    ">
-      <div style="font-size: 64px; margin-bottom: 20px; animation: pulse 1.5s infinite;">🔊</div>
-      <div style="font-size: 24px; font-weight: bold; margin-bottom: 15px; color: #333;">Enable Audio</div>
-      <div style="font-size: 16px; color: #666; margin-bottom: 20px;">Click or tap anywhere to enable sound</div>
-      <div style="
-        background: #007bff;
-        color: white;
-        padding: 12px 30px;
-        border-radius: 25px;
-        font-size: 16px;
-        font-weight: bold;
-        display: inline-block;
-        cursor: pointer;
-        user-select: none;
-      ">Start</div>
-    </div>
-  </div>
-`;
-document.body.appendChild(overlay);
+// 🔊 Audio unlock overlay
+function createOverlay() {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+  `;
+  document.head.appendChild(style);
 
-// 🔑 Hide overlay if already unlocked this session
-if (audioUnlocked) {
-  overlay.style.display = 'none';
-  console.log('✅ Audio already unlocked this session - overlay hidden');
+  const overlay = document.createElement('div');
+  overlay.id = 'audio-unlock-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10000;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+  overlay.innerHTML = `<div style="background:#fff;padding:40px 60px;border-radius:15px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.4);max-width:90%;animation:fadeIn .3s ease"><div style="font-size:64px;margin-bottom:20px;animation:pulse 1.5s infinite">🔊</div><div style="font-size:24px;font-weight:bold;margin-bottom:15px;color:#333">Enable Audio</div><div style="font-size:16px;color:#666;margin-bottom:20px">Click or tap anywhere to enable sound</div><div style="background:#007bff;color:#fff;padding:12px 30px;border-radius:25px;font-size:16px;font-weight:bold;display:inline-block;user-select:none">Start</div></div>`;
+  
+  document.body.appendChild(overlay);
+  if (audioUnlocked) overlay.style.display = 'none';
+  return overlay;
 }
 
-// Add animation styles
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  @keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-  }
-`;
-document.head.appendChild(style);
+const overlay = createOverlay();
 
-// 🔓 UNIVERSAL AUDIO UNLOCK FUNCTION (Chrome, Edge, Safari)
+// 🔓 Audio unlock function
 async function unlockAudio() {
   if (audioUnlocked) return;
   
-  // Mark as attempted to prevent multiple calls
   audioUnlocked = true;
   sessionStorage.setItem('audioUnlocked', 'true');
   
-  // Hide and remove overlay immediately
-  if (overlay && overlay.parentElement) {
+  if (overlay?.parentElement) {
     overlay.style.display = 'none';
-    setTimeout(() => {
-      if (overlay.parentElement) {
-        overlay.remove();
-      }
-    }, 100);
+    setTimeout(() => overlay.remove(), 100);
   }
   
   try {
-    // Create and play silent audio to unlock context
     audioPlayer.src = SILENT_AUDIO;
-    audioPlayer.volume = 0.01; // Very low volume
+    audioPlayer.volume = 0.01;
+    await audioPlayer.play();
+    audioPlayer.pause();
+    audioPlayer.currentTime = 0;
+    audioPlayer.volume = 1.0;
     
-    // Try to play and immediately pause
-    const playPromise = audioPlayer.play();
-    if (playPromise !== undefined) {
-      await playPromise;
-      // Successfully played
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
-      audioPlayer.volume = 1.0; // Reset volume
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+      const ctx = new AudioContext();
+      if (ctx.state === 'suspended') await ctx.resume();
+      ctx.close();
     }
     
-    console.log('🔓 Audio context unlocked successfully');
-    
-    // Also unlock Web Audio API context if exists
-    if (window.AudioContext || window.webkitAudioContext) {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      const tempContext = new AudioContextClass();
-      if (tempContext.state === 'suspended') {
-        await tempContext.resume();
-      }
-      tempContext.close();
-    }
-    
+    console.log('🔓 Audio unlocked');
   } catch (e) {
-    console.warn('⚠️ Audio unlock failed, will use browser TTS fallback:', e);
-    // Keep audioUnlocked = true so we don't show overlay again
-    // The sendToAI function will handle fallback to browser TTS
+    console.warn('⚠️ Audio unlock failed, using TTS fallback');
   }
 }
 
-// 🖱️ OVERLAY EVENT LISTENERS (Desktop + Mobile)
+// Event listeners
 overlay.addEventListener('click', unlockAudio);
-overlay.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  unlockAudio();
-});
+overlay.addEventListener('touchend', (e) => { e.preventDefault(); unlockAudio(); });
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
@@ -490,101 +455,18 @@ async function sendToAI(text) {
 
     if (data.emotion) setEmotion(data.emotion);
 
-    // 🔊 Audio from backend
-    if (data.audio) {
+    // Play audio or fallback to browser TTS
+    if (data.audio && audioUnlocked) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
-
-      // Only attempt playback if audio is unlocked
-      if (audioUnlocked) {
-        const playPromise = audioPlayer.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(err => {
-            console.error("🚫 Audio playback blocked:", err);
-            // Fallback to browser TTS if audio fails
-            console.warn("⚠️ Falling back to browser TTS");
-            if (data.reply) {
-              const utterance = new SpeechSynthesisUtterance(data.reply);
-              utterance.rate = 1.0;
-              utterance.pitch = 1.0;
-              utterance.onstart = () => {
-                isAvatarTalking = true;
-                startLipSync();
-              };
-              utterance.onend = () => {
-                isAvatarTalking = false;
-                stopLipSync();
-                setTimeout(() => {
-                  resetAvatar();
-                  notifyStorylineSpeechEnded();
-                }, 600);
-              };
-              speechSynthesis.speak(utterance);
-            } else {
-              isAvatarTalking = false;
-              stopLipSync();
-              resetAvatar();
-              notifyStorylineSpeechEnded();
-            }
-          });
-        }
-      } else {
-        // Audio not unlocked, use browser TTS immediately
-        console.warn("⚠️ Audio not unlocked, using browser TTS");
-        if (data.reply) {
-          const utterance = new SpeechSynthesisUtterance(data.reply);
-          utterance.rate = 1.0;
-          utterance.pitch = 1.0;
-          utterance.onstart = () => {
-            isAvatarTalking = true;
-            startLipSync();
-          };
-          utterance.onend = () => {
-            isAvatarTalking = false;
-            stopLipSync();
-            setTimeout(() => {
-              resetAvatar();
-              notifyStorylineSpeechEnded();
-            }, 600);
-          };
-          speechSynthesis.speak(utterance);
-        }
-      }
-    }
-
-    // 🔈 Browser TTS fallback
-    else if (data.reply) {
-      console.warn("⚠️ No audio payload; using browser TTS fallback");
-
-      const utterance = new SpeechSynthesisUtterance(data.reply);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => {
-        isAvatarTalking = true;
-        startLipSync();
-      };
-
-      utterance.onend = () => {
-        isAvatarTalking = false;
-        stopLipSync();
-        setTimeout(() => {
-          resetAvatar();
-          notifyStorylineSpeechEnded();
-        }, 600);
-      };
-
-      utterance.onerror = (e) => {
-        console.error("❌ Browser TTS error:", e);
-        isAvatarTalking = false;
-        stopLipSync();
-        resetAvatar();
-        notifyStorylineSpeechEnded();
-      };
-
-      speechSynthesis.speak(utterance);
-    }
-
-    else {
+      audioPlayer.play().catch(err => {
+        console.warn("⚠️ Audio blocked, using TTS:", err);
+        if (data.reply) speakWithBrowserTTS(data.reply);
+        else notifyStorylineSpeechEnded();
+      });
+    } else if (data.reply) {
+      console.warn("⚠️ Using browser TTS");
+      speakWithBrowserTTS(data.reply);
+    } else {
       notifyStorylineSpeechEnded();
     }
 
@@ -601,12 +483,10 @@ async function sendToAI(text) {
   STORYLINE MESSAGE BRIDGE
 ========================= */
 window.addEventListener("message", (event) => {
-if (!event.data || !event.data.type) return;
-
-if (event.data.type === "AI_MESSAGE") {
-console.log("📩 From Storyline:", event.data.text);
-sendToAI(event.data.text);
-}
+  if (event.data?.type === "AI_MESSAGE") {
+    console.log("📩 From Storyline:", event.data.text);
+    sendToAI(event.data.text);
+  }
 });
 
 /* =========================
