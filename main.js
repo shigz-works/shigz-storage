@@ -426,6 +426,24 @@ if (!event.data || !event.data.type) return;
 
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
+
+// 🔓 UNLOCK AUDIO ON USER INTERACTION
+// This must happen synchronously within the user gesture
+try {
+  const unlockPromise = audioPlayer.play();
+  if (unlockPromise !== undefined) {
+    unlockPromise.then(() => {
+      audioPlayer.pause();
+      audioPlayer.currentTime = 0;
+      console.log("🔓 Audio unlocked");
+    }).catch(() => {
+      // Ignore unlock errors
+    });
+  }
+} catch (e) {
+  // Ignore unlock errors
+}
+
 sendToAI(event.data.text);
 }
 });
