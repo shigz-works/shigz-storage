@@ -8,6 +8,12 @@ const AI_ENDPOINT =
 "https://ai-avatar-backend-238220494455.asia-east1.run.app/chat";
 
 /* =========================
+  AI CONVERSATION MEMORY
+========================= */
+let conversationHistory = [];
+const MAX_TURNS = 8; // user + assistant pairs
+
+/* =========================
   SCENE
 ========================= */
 const scene = new THREE.Scene();
@@ -314,77 +320,102 @@ window.parent.postMessage(
   AI CONNECTOR (CLOUD TTS)
 ========================= */
 async function sendToAI(text) {
-console.log("➡️ sendToAI:", text);
+  console.log("➡️ sendToAI:", text);
 
-try {
-const res = await fetch(AI_ENDPOINT, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ text })
-});
+  // 🧠 1️⃣ Store user message
+  conversationHistory.push({
+    role: "user",
+    content: text
+  });
 
-const data = await res.json();
-console.log("🤖 AI payload:", data);
+  // Keep memory small
+  if (conversationHistory.length > MAX_TURNS * 2) {
+    conversationHistory = conversationHistory.slice(-MAX_TURNS * 2);
+  }
 
-if (data.emotion) setEmotion(data.emotion);
+  try {
+    const res = await fetch(AI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        history: conversationHistory // ✅ SEND MEMORY
+      })
+    });
 
-if (data.audio) {
+    const data = await res.json();
+    console.log("🤖 AI payload:", data);
+
+    // 🧠 2️⃣ Store AI reply
+    if (data.reply) {
+      conversationHistory.push({
+        role: "assistant",
+        content: data.reply
+      });
+    }
+
+    if (data.emotion) setEmotion(data.emotion);
+
+    // 🔊 Audio from backend
+    if (data.audio) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
-      
+
       const playPromise = audioPlayer.play();
       if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            console.log("▶️ Audio playback started");
-          })
-          .catch(err => {
-            console.error("🚫 Audio playback blocked:", err);
-            console.error("Full error:", err);
-            isAvatarTalking = false;
-            stopLipSync();
-            resetAvatar();
-            notifyStorylineSpeechEnded();
-          });
+        playPromise.catch(err => {
+          console.error("🚫 Audio playback blocked:", err);
+          isAvatarTalking = false;
+          stopLipSync();
+          resetAvatar();
+          notifyStorylineSpeechEnded();
+        });
       }
- } else if (data.reply) {
-       // Fallback: browser TTS if backend did not return audio
-       console.warn("⚠️ No audio payload; using browser TTS fallback");
-       const utterance = new SpeechSynthesisUtterance(data.reply);
-       utterance.rate = 1.0;
-       utterance.pitch = 1.0;
+    }
 
-       utterance.onstart = () => {
-         startLipSync();
-       };
+    // 🔈 Browser TTS fallback
+    else if (data.reply) {
+      console.warn("⚠️ No audio payload; using browser TTS fallback");
 
-       utterance.onend = () => {
-         stopLipSync();
-         setTimeout(() => {
-           resetAvatar();
-           notifyStorylineSpeechEnded();
-         }, 600);
-       };
+      const utterance = new SpeechSynthesisUtterance(data.reply);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
 
-       utterance.onerror = (e) => {
-         console.error("❌ Browser TTS error:", e);
-         isAvatarTalking = false;
-         stopLipSync();
-         resetAvatar();
-         notifyStorylineSpeechEnded();
-       };
+      utterance.onstart = () => {
+        isAvatarTalking = true;
+        startLipSync();
+      };
 
-       speechSynthesis.speak(utterance);
- } else {
-       console.warn("⚠️ No audio or reply in payload; ending conversation");
-       notifyStorylineSpeechEnded();
-}
-} catch (err) {
-console.error("❌ AI error:", err);
-isAvatarTalking = false;
-stopLipSync();
-resetAvatar();
-notifyStorylineSpeechEnded();
-}
+      utterance.onend = () => {
+        isAvatarTalking = false;
+        stopLipSync();
+        setTimeout(() => {
+          resetAvatar();
+          notifyStorylineSpeechEnded();
+        }, 600);
+      };
+
+      utterance.onerror = (e) => {
+        console.error("❌ Browser TTS error:", e);
+        isAvatarTalking = false;
+        stopLipSync();
+        resetAvatar();
+        notifyStorylineSpeechEnded();
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+
+    else {
+      notifyStorylineSpeechEnded();
+    }
+
+  } catch (err) {
+    console.error("❌ AI error:", err);
+    isAvatarTalking = false;
+    stopLipSync();
+    resetAvatar();
+    notifyStorylineSpeechEnded();
+  }
 }
 
 /* =========================
