@@ -14,6 +14,27 @@ let conversationHistory = [];
 const MAX_TURNS = 8;
 
 /* =========================
+  AUDIO UNLOCK (CRITICAL)
+========================= */
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+
+  const a = new Audio();
+  a.muted = true;
+
+  const p = a.play();
+  if (p !== undefined) {
+    p.then(() => {
+      a.pause();
+      audioUnlocked = true;
+      console.log("🔓 Audio unlocked");
+    }).catch(() => {});
+  }
+}
+
+/* =========================
   SCENE
 ========================= */
 const scene = new THREE.Scene();
@@ -46,33 +67,6 @@ scene.add(new THREE.AmbientLight(0xffffff, 4));
 const dirLight = new THREE.DirectionalLight(0xffffff, 11);
 dirLight.position.set(0, 3, 5);
 scene.add(dirLight);
-
-/* =========================
-  IDLE POSE (NO T-POSE)
-========================= */
-function applyIdlePose(model) {
-  model.traverse(obj => {
-    if (!obj.isBone) return;
-
-    // Bring upper arms down to sides (rotation around X-axis, negative to go down)
-    if (obj.name.includes("UpperArm")) {
-      obj.rotation.x = -Math.PI * 0.4; // ~-72° down
-      obj.updateMatrixWorld(true);
-    }
-
-    // Bend elbows slightly
-    if (obj.name.includes("LowerArm")) {
-      obj.rotation.x = -Math.PI * 0.35; // ~-63° bend
-      obj.updateMatrixWorld(true);
-    }
-
-    // Rotate shoulders inward slightly
-    if (obj.name.includes("Shoulder")) {
-      obj.rotation.y = obj.name.includes("L") ? Math.PI * 0.1 : -Math.PI * 0.1;
-      obj.updateMatrixWorld(true);
-    }
-  });
-}
 
 /* =========================
   AVATAR
@@ -227,6 +221,12 @@ async function sendToAI(text) {
     if (data.emotion) setEmotion(data.emotion);
 
     if (data.audio) {
+      if (!audioUnlocked) {
+        console.warn("🔇 Audio not unlocked yet");
+        notifyStorylineSpeechEnded();
+        return;
+      }
+
       audioPlayer.src = "data:audio/mp3;base64," + data.audio;
       await audioPlayer.play();
     } else {
@@ -243,7 +243,11 @@ async function sendToAI(text) {
   STORYLINE BRIDGE
 ========================= */
 window.addEventListener("message", e => {
-  if (e.data?.type === "AI_MESSAGE") {
+  if (!e.data || !e.data.type) return;
+
+  if (e.data.type === "AI_MESSAGE") {
+    // 🔓 Unlock audio via real user interaction
+    unlockAudio();
     sendToAI(e.data.text);
   }
 });
