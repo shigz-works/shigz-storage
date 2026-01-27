@@ -425,7 +425,7 @@ async function sendToAI(text) {
 /* =========================
   STORYLINE MESSAGE BRIDGE
 ========================= */
-window.addEventListener("message", (event) => {
+window.addEventListener("message", async (event) => {
 if (!event.data || !event.data.type) return;
 
 if (event.data.type === "AI_MESSAGE") {
@@ -436,12 +436,9 @@ console.log("📩 From Storyline:", event.data.text);
 if (!audioUnlocked) {
   try {
     audioPlayer.src = SILENT_AUDIO;
-    audioPlayer.play().then(() => {
-      audioUnlocked = true;
-      console.log("🔓 Audio context unlocked");
-    }).catch(() => {
-      console.warn("⚠️ Could not unlock audio");
-    });
+    await audioPlayer.play();
+    audioUnlocked = true;
+    console.log("🔓 Audio context unlocked");
   } catch (e) {
     console.warn("⚠️ Audio unlock error:", e);
   }
