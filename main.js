@@ -360,6 +360,20 @@ document.head.appendChild(style);
 async function unlockAudio() {
   if (audioUnlocked) return;
   
+  // Mark as attempted to prevent multiple calls
+  audioUnlocked = true;
+  sessionStorage.setItem('audioUnlocked', 'true');
+  
+  // Hide and remove overlay immediately
+  if (overlay && overlay.parentElement) {
+    overlay.style.display = 'none';
+    setTimeout(() => {
+      if (overlay.parentElement) {
+        overlay.remove();
+      }
+    }, 100);
+  }
+  
   try {
     // Create and play silent audio to unlock context
     audioPlayer.src = SILENT_AUDIO;
@@ -375,12 +389,7 @@ async function unlockAudio() {
       audioPlayer.volume = 1.0; // Reset volume
     }
     
-    audioUnlocked = true;
-    sessionStorage.setItem('audioUnlocked', 'true');
-    const overlayElement = overlay;
-    overlayElement.style.display = 'none';
-    setTimeout(() => overlayElement.remove(), 300); // Remove after fade
-    console.log('🔓 Audio context unlocked successfully (saved to session)');
+    console.log('🔓 Audio context unlocked successfully');
     
     // Also unlock Web Audio API context if exists
     if (window.AudioContext || window.webkitAudioContext) {
@@ -393,22 +402,18 @@ async function unlockAudio() {
     }
     
   } catch (e) {
-    console.warn('⚠️ Audio unlock failed, using browser TTS fallback:', e);
-    overlay.style.display = 'none';
-    audioUnlocked = false; // Keep it false so we use browser TTS
+    console.warn('⚠️ Audio unlock failed, will use browser TTS fallback:', e);
+    // Keep audioUnlocked = true so we don't show overlay again
+    // The sendToAI function will handle fallback to browser TTS
   }
 }
 
-// 🖱️ MULTIPLE EVENT LISTENERS (Desktop + Mobile)
+// 🖱️ OVERLAY EVENT LISTENERS (Desktop + Mobile)
 overlay.addEventListener('click', unlockAudio);
 overlay.addEventListener('touchend', (e) => {
   e.preventDefault();
   unlockAudio();
 });
-
-// 🌍 SAFARI iOS SPECIFIC: Also try on first user interaction anywhere
-document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
-document.addEventListener('click', unlockAudio, { once: true });
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
