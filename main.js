@@ -285,7 +285,7 @@ audioPlayer.muted = false;
 // Silent audio data URI (0.1s of silence)
 const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
 
-// 🔊 CREATE AUDIO UNLOCK OVERLAY
+// 🔊 CREATE AUDIO UNLOCK OVERLAY (CROSS-BROWSER COMPATIBLE)
 const overlay = document.createElement('div');
 overlay.id = 'audio-unlock-overlay';
 overlay.innerHTML = `
@@ -295,73 +295,107 @@ overlay.innerHTML = `
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.8);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10000;
     cursor: pointer;
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
   ">
     <div style="
       background: white;
-      padding: 30px 50px;
-      border-radius: 10px;
+      padding: 40px 60px;
+      border-radius: 15px;
       text-align: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+      max-width: 90%;
+      animation: fadeIn 0.3s ease;
     ">
-      <div style="font-size: 48px; margin-bottom: 15px;">🔊</div>
-      <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Click to Enable Audio</div>
-      <div style="font-size: 14px; color: #666;">Tap anywhere to start</div>
+      <div style="font-size: 64px; margin-bottom: 20px; animation: pulse 1.5s infinite;">🔊</div>
+      <div style="font-size: 24px; font-weight: bold; margin-bottom: 15px; color: #333;">Enable Audio</div>
+      <div style="font-size: 16px; color: #666; margin-bottom: 20px;">Click or tap anywhere to enable sound</div>
+      <div style="
+        background: #007bff;
+        color: white;
+        padding: 12px 30px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: bold;
+        display: inline-block;
+        cursor: pointer;
+        user-select: none;
+      ">Start</div>
     </div>
   </div>
 `;
 document.body.appendChild(overlay);
 
-// 🔓 UNLOCK AUDIO ON CLICK
-overlay.addEventListener('click', async () => {
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+`;
+document.head.appendChild(style);
+
+// 🔓 UNIVERSAL AUDIO UNLOCK FUNCTION (Chrome, Edge, Safari)
+async function unlockAudio() {
+  if (audioUnlocked) return;
+  
   try {
+    // Create and play silent audio to unlock context
     audioPlayer.src = SILENT_AUDIO;
-    await audioPlayer.play();
+    audioPlayer.volume = 0.01; // Very low volume
+    
+    // Try to play and immediately pause
+    const playPromise = audioPlayer.play();
+    if (playPromise !== undefined) {
+      await playPromise;
+      // Successfully played
+      audioPlayer.pause();
+      audioPlayer.currentTime = 0;
+      audioPlayer.volume = 1.0; // Reset volume
+    }
+    
     audioUnlocked = true;
     overlay.style.display = 'none';
-    console.log('🔓 Audio context unlocked via overlay click');
+    console.log('🔓 Audio context unlocked successfully');
+    
+    // Also unlock Web Audio API context if exists
+    if (window.AudioContext || window.webkitAudioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const tempContext = new AudioContextClass();
+      if (tempContext.state === 'suspended') {
+        await tempContext.resume();
+      }
+      tempContext.close();
+    }
+    
   } catch (e) {
-    console.error('❌ Audio unlock failed:', e);
-    overlay.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        cursor: pointer;
-        font-family: Arial, sans-serif;
-      ">
-        <div style="
-          background: white;
-          padding: 30px 50px;
-          border-radius: 10px;
-          text-align: center;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        ">
-          <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
-          <div style="font-size: 16px; color: #666;">Using browser voice (audio blocked)</div>
-          <div style="font-size: 14px; color: #999; margin-top: 10px;">Click to continue</div>
-        </div>
-      </div>
-    `;
-    // Hide overlay after 2 seconds even if unlock failed
-    setTimeout(() => {
-      overlay.style.display = 'none';
-    }, 2000);
+    console.warn('⚠️ Audio unlock failed, using browser TTS fallback:', e);
+    overlay.style.display = 'none';
+    audioUnlocked = false; // Keep it false so we use browser TTS
   }
+}
+
+// 🖱️ MULTIPLE EVENT LISTENERS (Desktop + Mobile)
+overlay.addEventListener('click', unlockAudio);
+overlay.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  unlockAudio();
 });
+
+// 🌍 SAFARI iOS SPECIFIC: Also try on first user interaction anywhere
+document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+document.addEventListener('click', unlockAudio, { once: true });
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
@@ -442,15 +476,60 @@ async function sendToAI(text) {
     if (data.audio) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
 
-      const playPromise = audioPlayer.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.error("🚫 Audio playback blocked:", err);
-          isAvatarTalking = false;
-          stopLipSync();
-          resetAvatar();
-          notifyStorylineSpeechEnded();
-        });
+      // Only attempt playback if audio is unlocked
+      if (audioUnlocked) {
+        const playPromise = audioPlayer.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.error("🚫 Audio playback blocked:", err);
+            // Fallback to browser TTS if audio fails
+            console.warn("⚠️ Falling back to browser TTS");
+            if (data.reply) {
+              const utterance = new SpeechSynthesisUtterance(data.reply);
+              utterance.rate = 1.0;
+              utterance.pitch = 1.0;
+              utterance.onstart = () => {
+                isAvatarTalking = true;
+                startLipSync();
+              };
+              utterance.onend = () => {
+                isAvatarTalking = false;
+                stopLipSync();
+                setTimeout(() => {
+                  resetAvatar();
+                  notifyStorylineSpeechEnded();
+                }, 600);
+              };
+              speechSynthesis.speak(utterance);
+            } else {
+              isAvatarTalking = false;
+              stopLipSync();
+              resetAvatar();
+              notifyStorylineSpeechEnded();
+            }
+          });
+        }
+      } else {
+        // Audio not unlocked, use browser TTS immediately
+        console.warn("⚠️ Audio not unlocked, using browser TTS");
+        if (data.reply) {
+          const utterance = new SpeechSynthesisUtterance(data.reply);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          utterance.onstart = () => {
+            isAvatarTalking = true;
+            startLipSync();
+          };
+          utterance.onend = () => {
+            isAvatarTalking = false;
+            stopLipSync();
+            setTimeout(() => {
+              resetAvatar();
+              notifyStorylineSpeechEnded();
+            }, 600);
+          };
+          speechSynthesis.speak(utterance);
+        }
       }
     }
 
