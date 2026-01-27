@@ -285,6 +285,84 @@ audioPlayer.muted = false;
 // Silent audio data URI (0.1s of silence)
 const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
 
+// 🔊 CREATE AUDIO UNLOCK OVERLAY
+const overlay = document.createElement('div');
+overlay.id = 'audio-unlock-overlay';
+overlay.innerHTML = `
+  <div style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+  ">
+    <div style="
+      background: white;
+      padding: 30px 50px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    ">
+      <div style="font-size: 48px; margin-bottom: 15px;">🔊</div>
+      <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Click to Enable Audio</div>
+      <div style="font-size: 14px; color: #666;">Tap anywhere to start</div>
+    </div>
+  </div>
+`;
+document.body.appendChild(overlay);
+
+// 🔓 UNLOCK AUDIO ON CLICK
+overlay.addEventListener('click', async () => {
+  try {
+    audioPlayer.src = SILENT_AUDIO;
+    await audioPlayer.play();
+    audioUnlocked = true;
+    overlay.style.display = 'none';
+    console.log('🔓 Audio context unlocked via overlay click');
+  } catch (e) {
+    console.error('❌ Audio unlock failed:', e);
+    overlay.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: pointer;
+        font-family: Arial, sans-serif;
+      ">
+        <div style="
+          background: white;
+          padding: 30px 50px;
+          border-radius: 10px;
+          text-align: center;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        ">
+          <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+          <div style="font-size: 16px; color: #666;">Using browser voice (audio blocked)</div>
+          <div style="font-size: 14px; color: #999; margin-top: 10px;">Click to continue</div>
+        </div>
+      </div>
+    `;
+    // Hide overlay after 2 seconds even if unlock failed
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 2000);
+  }
+});
+
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
 isAvatarTalking = true;
@@ -425,23 +503,16 @@ async function sendToAI(text) {
 /* =========================
   STORYLINE MESSAGE BRIDGE
 ========================= */
-window.addEventListener("message", async (event) => {
+window.addEventListener("message", (event) => {
 if (!event.data || !event.data.type) return;
 
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
 
-// 🔓 UNLOCK AUDIO ON USER INTERACTION
-// Load and play silent audio to unlock audio context
-if (!audioUnlocked) {
-  try {
-    audioPlayer.src = SILENT_AUDIO;
-    await audioPlayer.play();
-    audioUnlocked = true;
-    console.log("🔓 Audio context unlocked");
-  } catch (e) {
-    console.warn("⚠️ Audio unlock error:", e);
-  }
+// 🚨 Show overlay if audio not unlocked yet
+if (!audioUnlocked && overlay.style.display === 'none') {
+  overlay.style.display = 'block';
+  console.warn("⚠️ Audio not unlocked - showing overlay");
 }
 
 sendToAI(event.data.text);
