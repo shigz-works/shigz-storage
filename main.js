@@ -600,13 +600,6 @@ if (!event.data || !event.data.type) return;
 
 if (event.data.type === "AI_MESSAGE") {
 console.log("📩 From Storyline:", event.data.text);
-
-// Only show overlay if audio was never unlocked in this session
-if (!audioUnlocked && overlay && overlay.parentElement) {
-  overlay.style.display = 'block';
-  console.warn("⚠️ Audio not unlocked - showing overlay");
-}
-
 sendToAI(event.data.text);
 }
 });
