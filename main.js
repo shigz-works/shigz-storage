@@ -42,6 +42,102 @@ renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 /* =========================
+  SUBTITLES
+========================= */
+const subtitleBox = document.createElement("div");
+subtitleBox.id = "avatar-subtitles";
+subtitleBox.style.cssText = `
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 18px;
+  line-height: 1.4;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  z-index: 9999;
+  display: none;
+`;
+document.body.appendChild(subtitleBox);
+
+function showSubtitles(text) {
+  subtitleBox.textContent = text;
+  subtitleBox.style.display = "block";
+}
+
+function hideSubtitles() {
+  subtitleBox.style.display = "none";
+}
+
+/* =========================
+  VOICE INPUT BUTTON
+========================= */
+const micBtn = document.createElement("button");
+micBtn.textContent = "🎤";
+micBtn.title = "Speak";
+micBtn.style.cssText = `
+  position: fixed;
+  bottom: 110px;
+  right: 30px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: #007bff;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 9999;
+`;
+document.body.appendChild(micBtn);
+
+/* =========================
+  SPEECH TO TEXT
+========================= */
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recognition = null;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    console.log("🎤 Voice input:", transcript);
+
+    showSubtitles("You: " + transcript);
+    sendToAI(transcript);
+  };
+
+  recognition.onerror = (e) => {
+    console.error("❌ Speech recognition error:", e);
+  };
+} else {
+  micBtn.disabled = true;
+  micBtn.textContent = "🚫";
+}
+
+micBtn.addEventListener("click", () => {
+  if (!conversationStarted) {
+    startConversation();
+  }
+
+  if (recognition) {
+    recognition.start();
+    console.log("🎙️ Listening...");
+  }
+});
+
+/* =========================
   LIGHTING
 ========================= */
 scene.add(new THREE.AmbientLight(0xffffff, 4.0));
@@ -343,6 +439,22 @@ function createOverlay() {
 
 const overlay = createOverlay();
 
+let conversationStarted = false;
+
+function startConversation() {
+  if (conversationStarted) return;
+  conversationStarted = true;
+
+  unlockAudio();
+
+  if (overlay?.parentElement) {
+    overlay.style.display = "none";
+    setTimeout(() => overlay.remove(), 100);
+  }
+
+  console.log("🟢 Conversation started");
+}
+
 // 🔓 Audio unlock function
 async function unlockAudio() {
   if (audioUnlocked) return;
@@ -377,8 +489,11 @@ async function unlockAudio() {
 }
 
 // Event listeners
-overlay.addEventListener('click', unlockAudio);
-overlay.addEventListener('touchend', (e) => { e.preventDefault(); unlockAudio(); });
+overlay.addEventListener("click", startConversation);
+overlay.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  startConversation();
+});
 
 audioPlayer.onplay = () => {
 console.log("🔊 Audio playing");
@@ -390,6 +505,7 @@ audioPlayer.onended = () => {
 console.log("🔇 Audio ended");
 isAvatarTalking = false;
 stopLipSync();
+hideSubtitles();
 
   // ⏳ Delay before reset + notify Storyline
 setTimeout(() => {
@@ -447,6 +563,7 @@ async function sendToAI(text) {
 
     // 🧠 2️⃣ Store AI reply
     if (data.reply) {
+      showSubtitles(data.reply);
       conversationHistory.push({
         role: "assistant",
         content: data.reply
