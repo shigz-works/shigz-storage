@@ -126,9 +126,11 @@ if (SpeechRecognition) {
   micBtn.textContent = "🚫";
 }
 
-micBtn.addEventListener("click", async () => {
-  if (!conversationStarted) {
-    await startConversation();
+micBtn.addEventListener("click", () => {
+  if (!audioReady) {
+    showSubtitles("🔊 Click Start button first to enable audio");
+    console.warn("⚠️ Audio not ready - overlay must be clicked first");
+    return;
   }
 
   if (recognition) {
@@ -337,15 +339,19 @@ function speakWithBrowserTTS(text) {
   utterance.onstart = () => {
     isAvatarTalking = true;
     startLipSync();
+    notifyStorylineSpeechStarted();
   };
 
   utterance.onend = () => {
     isAvatarTalking = false;
     stopLipSync();
+    hideSubtitles();
+    
+    notifyStorylineSpeechEnded();
+    
     setTimeout(() => {
       resetAvatar();
-      notifyStorylineSpeechEnded();
-    }, 600);
+    }, 400);
   };
 
   utterance.onerror = (e) => {
@@ -472,14 +478,13 @@ async function unlockAudio() {
 
     await audioPlayer.play(); // must be user-clicked
 
-    audioPlayer.pause();
-    audioPlayer.currentTime = 0;
+    // Keep playing silently to maintain unlocked state
     audioPlayer.volume = 1.0;
-
     audioReady = true; // ✅ THIS is what matters
     console.log("🔓 Audio unlocked inside iframe");
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
+    audioReady = false;
   }
 }
 
@@ -487,10 +492,16 @@ async function unlockAudio() {
 document
   .getElementById("startConversationBtn")
   .addEventListener("click", async () => {
+    const btn = document.getElementById("startConversationBtn");
+    btn.disabled = true;
+    btn.textContent = "Initializing...";
+
     await unlockAudio();
 
     if (!audioReady) {
-      alert("Audio could not be enabled. Please click again.");
+      btn.disabled = false;
+      btn.textContent = "Try Again";
+      alert("Audio could not be enabled. Please try again or check browser permissions.");
       return;
     }
 
