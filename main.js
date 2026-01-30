@@ -127,16 +127,9 @@ if (SpeechRecognition) {
 }
 
 micBtn.addEventListener("click", () => {
-  if (!audioReady) {
-    showSubtitles("🔊 Click Start button first to enable audio");
-    console.warn("⚠️ Audio not ready - overlay must be clicked first");
-    return;
-  }
-
-  if (recognition) {
-    recognition.start();
-    console.log("🎙️ Listening...");
-  }
+  if (!recognition) return;
+  recognition.start();
+  console.log("🎙️ Listening...");
 });
 
 /* =========================
@@ -476,12 +469,13 @@ async function unlockAudio() {
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
 
-    await audioPlayer.play(); // must be user-clicked
-
-    // Keep playing silently to maintain unlocked state
+    await audioPlayer.play();   // ✅ user gesture
+    audioPlayer.pause();        // ✅ REQUIRED
+    audioPlayer.currentTime = 0;
     audioPlayer.volume = 1.0;
-    audioReady = true; // ✅ THIS is what matters
-    console.log("🔓 Audio unlocked inside iframe");
+
+    audioReady = true;
+    console.log("🔓 Audio unlocked correctly");
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
     audioReady = false;
@@ -492,31 +486,23 @@ async function unlockAudio() {
 document
   .getElementById("startConversationBtn")
   .addEventListener("click", async () => {
-    const btn = document.getElementById("startConversationBtn");
-    btn.disabled = true;
-    btn.textContent = "Initializing...";
-
     await unlockAudio();
 
     if (!audioReady) {
-      btn.disabled = false;
-      btn.textContent = "Try Again";
-      alert("Audio could not be enabled. Please try again or check browser permissions.");
+      alert("Audio could not be enabled. Please click again.");
       return;
     }
 
     startOverlay.remove();
     conversationStarted = true;
-
-    console.log("🟢 Conversation started");
   });
 
 audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
-  console.log("🔊 Audio playing");
+
   isAvatarTalking = true;
   startLipSync();
-  notifyStorylineSpeechStarted();
+  notifyStorylineSpeechStarted(); // ✅ NOW SAFE
 };
 
 audioPlayer.onended = () => {
@@ -606,18 +592,16 @@ async function sendToAI(text) {
     // Play audio or fallback to browser TTS
     if (data.audio && audioReady) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
-      audioPlayer.currentTime = 0; // restart playback
+      audioPlayer.currentTime = 0;
 
-      audioPlayer.play().catch(err => {
-        console.warn("⚠️ Audio play failed, falling back to browser TTS:", err);
-        if (data.reply) speakWithBrowserTTS(data.reply);
-        else notifyStorylineSpeechEnded();
-      });
+      try {
+        await audioPlayer.play();
+      } catch (err) {
+        console.warn("⚠️ Audio blocked, using browser TTS", err);
+        speakWithBrowserTTS(data.reply);
+      }
     } else if (data.reply) {
-      console.warn("⚠️ Using browser TTS");
       speakWithBrowserTTS(data.reply);
-    } else {
-      notifyStorylineSpeechEnded();
     }
 
   } catch (err) {
