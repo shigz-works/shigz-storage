@@ -404,8 +404,6 @@ if (avatarRoot) applyIdlePose(avatarRoot);
    CLOUD TTS AUDIO PLAYER
    CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
-// 🔑 Check if audio was already unlocked this session
-let audioUnlocked = sessionStorage.getItem('audioUnlocked') === 'true';
 let audioReady = false;
 
 const audioPlayer = new Audio();
@@ -416,8 +414,6 @@ audioPlayer.muted = false;
 
 // Silent audio data URI (0.1s of silence)
 const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
-
-console.log('🔍 Audio status:', audioUnlocked ? 'Unlocked' : 'Needs unlock');
 
 /* =========================
   START CONVERSATION OVERLAY (REQUIRED)
@@ -474,15 +470,13 @@ async function unlockAudio() {
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
 
-    await audioPlayer.play(); // ✅ MUST be user-triggered
+    await audioPlayer.play(); // must be user-clicked
 
     audioPlayer.pause();
     audioPlayer.currentTime = 0;
     audioPlayer.volume = 1.0;
 
-    audioReady = true;
-    sessionStorage.setItem("audioUnlocked", "true");
-
+    audioReady = true; // ✅ THIS is what matters
     console.log("🔓 Audio unlocked inside iframe");
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
@@ -599,7 +593,7 @@ async function sendToAI(text) {
     if (data.emotion) setEmotion(data.emotion);
 
     // Play audio or fallback to browser TTS
-    if (data.audio && audioUnlocked) {
+    if (data.audio && audioReady) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
       audioPlayer.currentTime = 0; // restart playback
 
