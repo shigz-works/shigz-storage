@@ -491,22 +491,24 @@ overlay.addEventListener("touchend", (e) => {
 });
 
 audioPlayer.onplay = () => {
-console.log("🔊 Audio playing");
-isAvatarTalking = true;
-startLipSync();
+  if (isAvatarTalking) return;
+  console.log("🔊 Audio playing");
+  isAvatarTalking = true;
+  startLipSync();
+  notifyStorylineSpeechStarted();
 };
 
 audioPlayer.onended = () => {
-console.log("🔇 Audio ended");
-isAvatarTalking = false;
-stopLipSync();
-hideSubtitles();
+  console.log("🔇 Audio ended");
+  isAvatarTalking = false;
+  stopLipSync();
+  hideSubtitles();
 
-  // ⏳ Delay before reset + notify Storyline
-setTimeout(() => {
-resetAvatar();
-notifyStorylineSpeechEnded();
-}, 600);
+  notifyStorylineSpeechEnded(); // 🔑 MUST happen immediately
+
+  setTimeout(() => {
+    resetAvatar();
+  }, 400);
 };
 
 audioPlayer.onerror = (e) => {
@@ -519,6 +521,13 @@ audioPlayer.onerror = (e) => {
 /* =========================
   STORYLINE CALLBACK
 ========================= */
+function notifyStorylineSpeechStarted() {
+  window.parent.postMessage(
+    { type: "AVATAR_SPEECH_STARTED" },
+    "*"
+  );
+}
+
 function notifyStorylineSpeechEnded() {
 window.parent.postMessage(
 { type: "AVATAR_SPEECH_ENDED" },
@@ -571,6 +580,12 @@ async function sendToAI(text) {
     if (data.audio && audioUnlocked) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
       audioPlayer.currentTime = 0; // restart playback
+
+      audioPlayer.play().catch(err => {
+        console.warn("⚠️ Audio play failed, falling back to browser TTS:", err);
+        if (data.reply) speakWithBrowserTTS(data.reply);
+        else notifyStorylineSpeechEnded();
+      });
     } else if (data.reply) {
       console.warn("⚠️ Using browser TTS");
       speakWithBrowserTTS(data.reply);
