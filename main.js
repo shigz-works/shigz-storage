@@ -126,9 +126,9 @@ if (SpeechRecognition) {
   micBtn.textContent = "🚫";
 }
 
-micBtn.addEventListener("click", () => {
+micBtn.addEventListener("click", async () => {
   if (!conversationStarted) {
-    startConversation();
+    await startConversation();
   }
 
   if (recognition) {
@@ -441,11 +441,11 @@ const overlay = createOverlay();
 
 let conversationStarted = false;
 
-function startConversation() {
+async function startConversation() {
   if (conversationStarted) return;
   conversationStarted = true;
 
-  unlockAudio();
+  await unlockAudio();
 
   if (overlay?.parentElement) {
     overlay.style.display = "none";
