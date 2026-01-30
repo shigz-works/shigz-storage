@@ -404,6 +404,7 @@ if (avatarRoot) applyIdlePose(avatarRoot);
    CLOUD TTS AUDIO PLAYER (FIXED)
 ========================= */
 let audioReady = false;
+let lastReply = ""; // Store for error recovery
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
@@ -519,10 +520,16 @@ audioPlayer.onended = () => {
 };
 
 audioPlayer.onerror = (e) => {
-  console.error("❌ Audio element error:", e);
+  console.warn("⚠️ Audio element error, falling back to browser TTS");
   isAvatarTalking = false;
   stopLipSync();
-  notifyStorylineSpeechEnded();
+  
+  // Fallback to browser TTS if we have the text
+  if (lastReply) {
+    speakWithBrowserTTS(lastReply);
+  } else {
+    notifyStorylineSpeechEnded();
+  }
 };
 
 /* =========================
@@ -580,6 +587,7 @@ async function sendToAI(text) {
 
     // 🧠 2️⃣ Store AI reply
     if (data.reply) {
+      lastReply = data.reply; // Store for error recovery
       showSubtitles(data.reply);
       conversationHistory.push({
         role: "assistant",
