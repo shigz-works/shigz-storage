@@ -406,6 +406,7 @@ if (avatarRoot) applyIdlePose(avatarRoot);
 ========================= */
 // 🔑 Check if audio was already unlocked this session
 let audioUnlocked = sessionStorage.getItem('audioUnlocked') === 'true';
+let audioReady = false;
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
@@ -445,8 +446,6 @@ async function startConversation() {
   if (conversationStarted) return;
   conversationStarted = true;
 
-  await unlockAudio();
-
   if (overlay?.parentElement) {
     overlay.style.display = "none";
     setTimeout(() => overlay.remove(), 100);
@@ -457,36 +456,33 @@ async function startConversation() {
 
 // 🔓 Audio unlock function
 async function unlockAudio() {
-  if (audioUnlocked) return;
-
-  audioUnlocked = true;
-  sessionStorage.setItem("audioUnlocked", "true");
-
-  if (overlay?.parentElement) {
-    overlay.style.display = "none";
-    setTimeout(() => overlay.remove(), 100);
-  }
+  if (audioReady) return;
 
   try {
-    // 🔑 Prime audio ONCE (browser allows this)
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
 
-    await audioPlayer.play(); // ✅ ONLY allowed play() call
+    await audioPlayer.play(); // MUST be inside iframe click
 
-    // Keep it alive, just silent
     audioPlayer.volume = 1.0;
+    audioReady = true;
+    audioUnlocked = true;
+    sessionStorage.setItem("audioUnlocked", "true");
 
-    console.log("🔓 Audio unlocked & primed");
+    console.log("🔓 Audio unlocked inside iframe");
   } catch (e) {
-    console.warn("⚠️ Audio unlock failed, browser TTS will be used");
+    console.warn("⚠️ Audio unlock failed — waiting for user click");
   }
 }
 
 // Event listeners
-overlay.addEventListener("click", startConversation);
-overlay.addEventListener("touchend", (e) => {
+overlay.addEventListener("click", async () => {
+  await unlockAudio();
+  startConversation();
+});
+overlay.addEventListener("touchend", async (e) => {
   e.preventDefault();
+  await unlockAudio();
   startConversation();
 });
 
@@ -540,6 +536,12 @@ window.parent.postMessage(
 ========================= */
 async function sendToAI(text) {
   console.log("➡️ sendToAI:", text);
+
+  if (!audioReady) {
+    console.warn("🔇 Audio not ready — waiting for iframe click");
+    showSubtitles("🔊 Click Start to enable voice");
+    return;
+  }
 
   // 🧠 1️⃣ Store user message
   conversationHistory.push({
