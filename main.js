@@ -419,40 +419,52 @@ const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU
 
 console.log('🔍 Audio status:', audioUnlocked ? 'Unlocked' : 'Needs unlock');
 
-// 🔊 Audio unlock overlay
-function createOverlay() {
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-  `;
-  document.head.appendChild(style);
+/* =========================
+  START CONVERSATION OVERLAY (REQUIRED)
+========================= */
+const startOverlay = document.createElement("div");
+startOverlay.id = "start-overlay";
+startOverlay.style.cssText = `
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  font-family: Arial, sans-serif;
+`;
 
-  const overlay = document.createElement('div');
-  overlay.id = 'audio-unlock-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10000;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
-  overlay.innerHTML = `<div style="background:#fff;padding:40px 60px;border-radius:15px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.4);max-width:90%;animation:fadeIn .3s ease"><div style="font-size:64px;margin-bottom:20px;animation:pulse 1.5s infinite">🔊</div><div style="font-size:24px;font-weight:bold;margin-bottom:15px;color:#333">Enable Audio</div><div style="font-size:16px;color:#666;margin-bottom:20px">Click or tap anywhere to enable sound</div><div style="background:#007bff;color:#fff;padding:12px 30px;border-radius:25px;font-size:16px;font-weight:bold;display:inline-block;user-select:none">Start</div></div>`;
-  
-  document.body.appendChild(overlay);
-  if (audioUnlocked) overlay.style.display = 'none';
-  return overlay;
-}
+startOverlay.innerHTML = `
+  <div style="
+    background: white;
+    padding: 40px 50px;
+    border-radius: 16px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  ">
+    <div style="font-size: 56px; margin-bottom: 20px;">🔊</div>
+    <h2 style="margin: 0 0 12px;">Start Conversation</h2>
+    <p style="color: #555; margin-bottom: 24px;">
+      Click to enable voice and talk to the avatar
+    </p>
+    <button id="startConversationBtn" style="
+      padding: 14px 32px;
+      font-size: 18px;
+      border-radius: 30px;
+      border: none;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+    ">
+      Start
+    </button>
+  </div>
+`;
 
-const overlay = createOverlay();
+document.body.appendChild(startOverlay);
 
 let conversationStarted = false;
-
-async function startConversation() {
-  if (conversationStarted) return;
-  conversationStarted = true;
-
-  if (overlay?.parentElement) {
-    overlay.style.display = "none";
-    setTimeout(() => overlay.remove(), 100);
-  }
-
-  console.log("🟢 Conversation started");
-}
 
 // 🔓 Audio unlock function
 async function unlockAudio() {
@@ -462,29 +474,37 @@ async function unlockAudio() {
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
 
-    await audioPlayer.play(); // MUST be inside iframe click
+    await audioPlayer.play(); // ✅ MUST be user-triggered
 
+    audioPlayer.pause();
+    audioPlayer.currentTime = 0;
     audioPlayer.volume = 1.0;
+
     audioReady = true;
-    audioUnlocked = true;
     sessionStorage.setItem("audioUnlocked", "true");
 
     console.log("🔓 Audio unlocked inside iframe");
   } catch (e) {
-    console.warn("⚠️ Audio unlock failed — waiting for user click");
+    console.warn("⚠️ Audio unlock failed", e);
   }
 }
 
-// Event listeners
-overlay.addEventListener("click", async () => {
-  await unlockAudio();
-  startConversation();
-});
-overlay.addEventListener("touchend", async (e) => {
-  e.preventDefault();
-  await unlockAudio();
-  startConversation();
-});
+// Wire the button
+document
+  .getElementById("startConversationBtn")
+  .addEventListener("click", async () => {
+    await unlockAudio();
+
+    if (!audioReady) {
+      alert("Audio could not be enabled. Please click again.");
+      return;
+    }
+
+    startOverlay.remove();
+    conversationStarted = true;
+
+    console.log("🟢 Conversation started");
+  });
 
 audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
