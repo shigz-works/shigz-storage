@@ -415,53 +415,6 @@ audioPlayer.muted = false;
 // Silent audio data URI (0.1s of silence)
 const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
 
-/* =========================
-  START CONVERSATION OVERLAY (REQUIRED)
-========================= */
-const startOverlay = document.createElement("div");
-startOverlay.id = "start-overlay";
-startOverlay.style.cssText = `
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  font-family: Arial, sans-serif;
-`;
-
-startOverlay.innerHTML = `
-  <div style="
-    background: white;
-    padding: 40px 50px;
-    border-radius: 16px;
-    text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-  ">
-    <div style="font-size: 56px; margin-bottom: 20px;">🔊</div>
-    <h2 style="margin: 0 0 12px;">Start Conversation</h2>
-    <p style="color: #555; margin-bottom: 24px;">
-      Click to enable voice and talk to the avatar
-    </p>
-    <button id="startConversationBtn" style="
-      padding: 14px 32px;
-      font-size: 18px;
-      border-radius: 30px;
-      border: none;
-      background: #007bff;
-      color: white;
-      cursor: pointer;
-    ">
-      Start
-    </button>
-  </div>
-`;
-
-document.body.appendChild(startOverlay);
-
-let conversationStarted = false;
-
 // 🔓 Audio unlock function
 async function unlockAudio() {
   if (audioReady) return;
@@ -482,21 +435,6 @@ async function unlockAudio() {
     audioReady = false;
   }
 }
-
-// Wire the button
-document
-  .getElementById("startConversationBtn")
-  .addEventListener("click", async () => {
-    await unlockAudio();
-
-    if (!audioReady) {
-      alert("Audio could not be enabled. Please click again.");
-      return;
-    }
-
-    startOverlay.remove();
-    conversationStarted = true;
-  });
 
 audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
@@ -555,10 +493,9 @@ window.parent.postMessage(
 async function sendToAI(text) {
   console.log("➡️ sendToAI:", text);
 
+  // Auto-unlock audio on first use
   if (!audioReady) {
-    console.warn("🔇 Audio not ready — waiting for iframe click");
-    showSubtitles("🔊 Click Start to enable voice");
-    return;
+    await unlockAudio();
   }
 
   // 🧠 1️⃣ Store user message
