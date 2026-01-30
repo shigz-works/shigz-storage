@@ -458,33 +458,28 @@ async function startConversation() {
 // 🔓 Audio unlock function
 async function unlockAudio() {
   if (audioUnlocked) return;
-  
+
   audioUnlocked = true;
-  sessionStorage.setItem('audioUnlocked', 'true');
-  
+  sessionStorage.setItem("audioUnlocked", "true");
+
   if (overlay?.parentElement) {
-    overlay.style.display = 'none';
+    overlay.style.display = "none";
     setTimeout(() => overlay.remove(), 100);
   }
-  
+
   try {
+    // 🔑 Prime audio ONCE (browser allows this)
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
-    await audioPlayer.play();
-    audioPlayer.pause();
-    audioPlayer.currentTime = 0;
+
+    await audioPlayer.play(); // ✅ ONLY allowed play() call
+
+    // Keep it alive, just silent
     audioPlayer.volume = 1.0;
-    
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) {
-      const ctx = new AudioContext();
-      if (ctx.state === 'suspended') await ctx.resume();
-      ctx.close();
-    }
-    
-    console.log('🔓 Audio unlocked');
+
+    console.log("🔓 Audio unlocked & primed");
   } catch (e) {
-    console.warn('⚠️ Audio unlock failed, using TTS fallback');
+    console.warn("⚠️ Audio unlock failed, browser TTS will be used");
   }
 }
 
@@ -575,11 +570,7 @@ async function sendToAI(text) {
     // Play audio or fallback to browser TTS
     if (data.audio && audioUnlocked) {
       audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
-      audioPlayer.play().catch(err => {
-        console.warn("⚠️ Audio blocked, using TTS:", err);
-        if (data.reply) speakWithBrowserTTS(data.reply);
-        else notifyStorylineSpeechEnded();
-      });
+      audioPlayer.currentTime = 0; // restart playback
     } else if (data.reply) {
       console.warn("⚠️ Using browser TTS");
       speakWithBrowserTTS(data.reply);
