@@ -411,8 +411,8 @@ audioPlayer.preload = "auto";
 audioPlayer.playsInline = true;
 audioPlayer.muted = false;
 
-// Silent audio data URI (0.1s of silence)
-const SILENT_AUDIO = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7////////////////////////////////////////////////////////////////////////////AAAAAExhdmM1OC4xMzAAAAAAAAAAAAAAAAkAAAAAAAAAAAAA";
+// Silent audio data URI (valid WAV file with minimal silence)
+const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
 // 🔓 Audio unlock function
 async function unlockAudio() {
@@ -421,6 +421,13 @@ async function unlockAudio() {
   try {
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
+    
+    // Load the audio first
+    await new Promise((resolve, reject) => {
+      audioPlayer.onloadeddata = resolve;
+      audioPlayer.onerror = reject;
+      audioPlayer.load();
+    });
 
     await audioPlayer.play();   // ✅ user gesture
     audioPlayer.pause();        // ✅ REQUIRED
@@ -431,7 +438,8 @@ async function unlockAudio() {
     console.log("🔓 Audio unlocked correctly");
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
-    audioReady = false;
+    // Try to continue anyway - some browsers may still work
+    audioReady = true;
   }
 }
 
