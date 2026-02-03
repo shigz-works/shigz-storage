@@ -41,6 +41,63 @@ renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 /* =========================
+  START OVERLAY (AUDIO UNLOCK)
+========================= */
+const startOverlay = document.createElement("div");
+startOverlay.id = "start-overlay";
+startOverlay.style.cssText = `
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+`;
+
+const startButton = document.createElement("button");
+startButton.textContent = "Start";
+startButton.style.cssText = `
+  padding: 16px 28px;
+  font-size: 20px;
+  border-radius: 12px;
+  border: none;
+  background: #1e88ff;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+`;
+
+const startHint = document.createElement("div");
+startHint.textContent = "Tap Start to enable audio";
+startHint.style.cssText = `
+  margin-top: 12px;
+  font-size: 14px;
+  color: #e6f0ff;
+  text-align: center;
+`;
+
+const startWrap = document.createElement("div");
+startWrap.style.cssText = `
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+startWrap.appendChild(startButton);
+startWrap.appendChild(startHint);
+startOverlay.appendChild(startWrap);
+document.body.appendChild(startOverlay);
+
+function hideStartOverlay() {
+  startOverlay.style.display = "none";
+}
+
+function showStartOverlay(message) {
+  if (message) startHint.textContent = message;
+  startOverlay.style.display = "flex";
+}
+
+/* =========================
   SUBTITLES
 ========================= */
 const subtitleBox = document.createElement("div");
@@ -455,7 +512,7 @@ async function ensureAudioContext() {
 
 // 🔓 Audio unlock function
 async function unlockAudio() {
-  if (audioReady) return;
+  if (audioReady) return true;
 
   try {
     await ensureAudioContext();
@@ -485,26 +542,29 @@ async function unlockAudio() {
 
     audioReady = true;
     console.log("🔓 Audio unlocked correctly");
+    return true;
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
     // Allow playback attempts even if unlock fails
-    audioReady = true;
+    audioReady = false;
     isUnlockingAudio = false;
+    return false;
   }
 }
 
-// Try to unlock on any user gesture within the iframe
-const unlockOnce = async () => {
-  if (!audioReady) {
-    await unlockAudio();
+startButton.addEventListener("click", async () => {
+  startButton.disabled = true;
+  startButton.textContent = "Enabling...";
+
+  const ok = await unlockAudio();
+  if (ok || audioReady) {
+    hideStartOverlay();
+  } else {
+    startButton.disabled = false;
+    startButton.textContent = "Start";
+    showStartOverlay("Audio blocked. Tap Start again.");
   }
-  window.removeEventListener("pointerdown", unlockOnce, true);
-  window.removeEventListener("touchstart", unlockOnce, true);
-  window.removeEventListener("keydown", unlockOnce, true);
-};
-window.addEventListener("pointerdown", unlockOnce, true);
-window.addEventListener("touchstart", unlockOnce, true);
-window.addEventListener("keydown", unlockOnce, true);
+});
 
 audioPlayer.onplay = () => {
   if (isUnlockingAudio) return;
@@ -574,9 +634,9 @@ window.parent.postMessage(
 async function sendToAI(text) {
   console.log("➡️ sendToAI:", text);
 
-  // Auto-unlock audio on first use
   if (!audioReady) {
-    await unlockAudio();
+    showStartOverlay("Tap Start to enable audio");
+    return;
   }
 
   // 🧠 1️⃣ Store user message
