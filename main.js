@@ -476,6 +476,7 @@ async function unlockAudio() {
 
     audioReady = true;
     console.log("🔓 Audio unlocked correctly");
+    resetAvatar();
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
     // Allow playback attempts even if unlock fails
