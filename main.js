@@ -17,7 +17,6 @@ const MAX_TURNS = 8; // user + assistant pairs
   SCENE
 ========================= */
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf2f2f2);
 
 /* =========================
   CAMERA (HEAD & SHOULDERS)
@@ -34,7 +33,7 @@ camera.lookAt(0, 1.6, 0);
 /* =========================
   RENDERER
 ========================= */
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.LinearToneMapping;
