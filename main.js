@@ -127,6 +127,9 @@ if (SpeechRecognition) {
 
 micBtn.addEventListener("click", () => {
   if (!recognition) return;
+  if (!audioReady) {
+    unlockAudio();
+  }
   recognition.start();
   console.log("🎙️ Listening...");
 });
@@ -404,6 +407,8 @@ if (avatarRoot) applyIdlePose(avatarRoot);
 ========================= */
 let audioReady = false;
 let lastReply = ""; // Store for error recovery
+let audioContext = null;
+let lastAudioUrl = null;
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
@@ -414,11 +419,46 @@ audioPlayer.muted = false;
 // Silent audio data URI (valid WAV file with minimal silence)
 const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
+function getAudioMimeFromBase64(base64) {
+  if (!base64) return "audio/mpeg";
+
+  if (base64.startsWith("UklGR")) return "audio/wav"; // WAV (RIFF)
+  if (base64.startsWith("T2dn")) return "audio/ogg"; // OGG (OggS)
+  if (base64.startsWith("SUQz") || base64.startsWith("//tQ")) return "audio/mpeg"; // MP3
+
+  return "audio/mpeg";
+}
+
+function createAudioUrlFromBase64(base64, mimeType) {
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mimeType });
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    console.warn("⚠️ Failed to create audio Blob URL", e);
+    return null;
+  }
+}
+
+async function ensureAudioContext() {
+  if (!audioContext) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) audioContext = new Ctx();
+  }
+  if (audioContext && audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
+}
+
 // 🔓 Audio unlock function
 async function unlockAudio() {
   if (audioReady) return;
 
   try {
+    await ensureAudioContext();
+
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
     
@@ -438,10 +478,23 @@ async function unlockAudio() {
     console.log("🔓 Audio unlocked correctly");
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
-    // Try to continue anyway - some browsers may still work
+    // Allow playback attempts even if unlock fails
     audioReady = true;
   }
 }
+
+// Try to unlock on any user gesture within the iframe
+const unlockOnce = async () => {
+  if (!audioReady) {
+    await unlockAudio();
+  }
+  window.removeEventListener("pointerdown", unlockOnce, true);
+  window.removeEventListener("touchstart", unlockOnce, true);
+  window.removeEventListener("keydown", unlockOnce, true);
+};
+window.addEventListener("pointerdown", unlockOnce, true);
+window.addEventListener("touchstart", unlockOnce, true);
+window.addEventListener("keydown", unlockOnce, true);
 
 audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
@@ -457,6 +510,11 @@ audioPlayer.onended = () => {
   stopLipSync();
   hideSubtitles();
 
+  if (lastAudioUrl) {
+    URL.revokeObjectURL(lastAudioUrl);
+    lastAudioUrl = null;
+  }
+
   notifyStorylineSpeechEnded(); // 🔑 MUST happen immediately
 
   setTimeout(() => {
@@ -468,6 +526,11 @@ audioPlayer.onerror = (e) => {
   console.warn("⚠️ Audio element error, falling back to browser TTS");
   isAvatarTalking = false;
   stopLipSync();
+
+  if (lastAudioUrl) {
+    URL.revokeObjectURL(lastAudioUrl);
+    lastAudioUrl = null;
+  }
   
   // Fallback to browser TTS if we have the text
   if (lastReply) {
@@ -543,13 +606,24 @@ async function sendToAI(text) {
 
     // Play audio or fallback to browser TTS
     if (data.audio && audioReady) {
-      audioPlayer.src = "data:audio/mpeg;base64," + data.audio;
-      audioPlayer.currentTime = 0;
+      const mime = data.audioMime || data.mime || data.format || getAudioMimeFromBase64(data.audio);
+      const url = createAudioUrlFromBase64(data.audio, mime);
 
-      try {
-        await audioPlayer.play();
-      } catch (err) {
-        console.warn("⚠️ Audio blocked, using browser TTS", err);
+      if (url) {
+        if (lastAudioUrl) {
+          URL.revokeObjectURL(lastAudioUrl);
+        }
+        lastAudioUrl = url;
+        audioPlayer.src = url;
+        audioPlayer.currentTime = 0;
+
+        try {
+          await audioPlayer.play();
+        } catch (err) {
+          console.warn("⚠️ Audio blocked, using browser TTS", err);
+          speakWithBrowserTTS(data.reply);
+        }
+      } else if (data.reply) {
         speakWithBrowserTTS(data.reply);
       }
     } else if (data.reply) {
