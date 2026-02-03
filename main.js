@@ -37,7 +37,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.LinearToneMapping;
-renderer.toneMappingExposure = 1.25;
+renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 /* =========================
@@ -137,23 +137,10 @@ micBtn.addEventListener("click", () => {
 /* =========================
   LIGHTING
 ========================= */
-// Soft cool ambient
-scene.add(new THREE.AmbientLight(0xcfe8ff, 4.8));
-
-// Key light (cooler and brighter)
-const dirLight = new THREE.DirectionalLight(0xd6f0ff, 13.5);
-dirLight.position.set(0, 3.5, 5.5);
+scene.add(new THREE.AmbientLight(0xffffff, 4.0));
+const dirLight = new THREE.DirectionalLight(0xffffff, 11);
+dirLight.position.set(0, 3, 5);
 scene.add(dirLight);
-
-// Fill light to soften shadows
-const fillLight = new THREE.DirectionalLight(0xffffff, 4.5);
-fillLight.position.set(-3, 2.5, 2);
-scene.add(fillLight);
-
-// Rim light for a cool edge highlight
-const rimLight = new THREE.DirectionalLight(0xbfe8ff, 3.5);
-rimLight.position.set(0, 2.5, -4);
-scene.add(rimLight);
 
 /* =========================
   IDLE POSE (NO T-POSE)
@@ -202,24 +189,6 @@ if (!obj.isMesh) return;
 if (obj.material?.map) {
 obj.material.map.colorSpace = THREE.SRGBColorSpace;
 obj.material.needsUpdate = true;
-}
-
-// Make likely skin meshes glossier
-if (obj.material && (obj.material.isMeshStandardMaterial || obj.material.isMeshPhysicalMaterial)) {
-  const name = (obj.name || "").toLowerCase();
-  const isSkin = name.includes("skin") || name.includes("face") || name.includes("body") || name.includes("head") || name.includes("arm") || name.includes("leg");
-
-  if (isSkin) {
-    obj.material.roughness = Math.min(obj.material.roughness ?? 0.6, 0.35);
-    obj.material.metalness = Math.max(obj.material.metalness ?? 0.0, 0.05);
-
-    if (obj.material.isMeshPhysicalMaterial) {
-      obj.material.clearcoat = 0.4;
-      obj.material.clearcoatRoughness = 0.2;
-    }
-
-    obj.material.needsUpdate = true;
-  }
 }
 
 if (obj.morphTargetDictionary?.Fcl_MTH_A !== undefined)
