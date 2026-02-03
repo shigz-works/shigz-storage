@@ -201,6 +201,9 @@ blinkMeshes.push(obj);
 setupBlinking();
 setupIdleGestures();
 console.log("✅ Avatar loaded & ready");
+
+// Try to unlock audio as soon as avatar is ready
+unlockAudio();
 });
 
 /* =========================
@@ -406,6 +409,9 @@ let audioReady = false;
 let lastReply = ""; // Store for error recovery
 let audioContext = null;
 let lastAudioUrl = null;
+let pendingAudio = null;
+let pendingMime = null;
+let pendingText = null;
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
@@ -415,6 +421,43 @@ audioPlayer.muted = false;
 
 // Silent audio data URI (valid WAV file with minimal silence)
 const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
+// Prompt user to enable audio if autoplay is blocked
+const audioUnlockOverlay = document.createElement("div");
+audioUnlockOverlay.id = "audio-unlock-overlay";
+audioUnlockOverlay.style.cssText = `
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+`;
+
+const audioUnlockButton = document.createElement("button");
+audioUnlockButton.textContent = "Tap to enable audio";
+audioUnlockButton.style.cssText = `
+  padding: 16px 28px;
+  font-size: 18px;
+  border-radius: 12px;
+  border: none;
+  background: #1e88ff;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+`;
+
+audioUnlockOverlay.appendChild(audioUnlockButton);
+document.body.appendChild(audioUnlockOverlay);
+
+function showAudioUnlockOverlay() {
+  audioUnlockOverlay.style.display = "flex";
+}
+
+function hideAudioUnlockOverlay() {
+  audioUnlockOverlay.style.display = "none";
+}
 
 function getAudioMimeFromBase64(base64) {
   if (!base64) return "audio/mpeg";
@@ -451,7 +494,7 @@ async function ensureAudioContext() {
 
 // 🔓 Audio unlock function
 async function unlockAudio() {
-  if (audioReady) return;
+  if (audioReady) return true;
 
   try {
     await ensureAudioContext();
@@ -473,12 +516,67 @@ async function unlockAudio() {
 
     audioReady = true;
     console.log("🔓 Audio unlocked correctly");
+    return true;
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
-    // Allow playback attempts even if unlock fails
-    audioReady = true;
+    audioReady = false;
+    return false;
   }
 }
+
+function isAutoplayBlocked(err) {
+  if (!err) return false;
+  return (
+    err.name === "NotAllowedError" ||
+    err.name === "NotSupportedError" ||
+    /gesture|user|permission|autoplay/i.test(err.message || "")
+  );
+}
+
+async function playAIAudio(base64, mimeType, replyText) {
+  pendingAudio = base64;
+  pendingMime = mimeType;
+  pendingText = replyText || "";
+
+  const url = createAudioUrlFromBase64(base64, mimeType);
+  if (!url) return false;
+
+  if (lastAudioUrl) {
+    URL.revokeObjectURL(lastAudioUrl);
+  }
+  lastAudioUrl = url;
+  audioPlayer.src = url;
+  audioPlayer.currentTime = 0;
+
+  try {
+    await audioPlayer.play();
+    audioReady = true;
+    hideAudioUnlockOverlay();
+    return true;
+  } catch (err) {
+    if (isAutoplayBlocked(err)) {
+      showAudioUnlockOverlay();
+      return false;
+    }
+    console.warn("⚠️ Audio play failed, using browser TTS", err);
+    if (replyText) speakWithBrowserTTS(replyText);
+    return false;
+  }
+}
+
+audioUnlockButton.addEventListener("click", async () => {
+  audioUnlockButton.disabled = true;
+  audioUnlockButton.textContent = "Enabling...";
+
+  const ok = await unlockAudio();
+  if (ok && pendingAudio) {
+    await playAIAudio(pendingAudio, pendingMime || getAudioMimeFromBase64(pendingAudio), pendingText);
+  }
+
+  audioUnlockButton.disabled = false;
+  audioUnlockButton.textContent = "Tap to enable audio";
+  if (audioReady) hideAudioUnlockOverlay();
+});
 
 audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
@@ -584,27 +682,9 @@ async function sendToAI(text) {
     if (data.emotion) setEmotion(data.emotion);
 
     // Play audio or fallback to browser TTS
-    if (data.audio && audioReady) {
+    if (data.audio) {
       const mime = data.audioMime || data.mime || data.format || getAudioMimeFromBase64(data.audio);
-      const url = createAudioUrlFromBase64(data.audio, mime);
-
-      if (url) {
-        if (lastAudioUrl) {
-          URL.revokeObjectURL(lastAudioUrl);
-        }
-        lastAudioUrl = url;
-        audioPlayer.src = url;
-        audioPlayer.currentTime = 0;
-
-        try {
-          await audioPlayer.play();
-        } catch (err) {
-          console.warn("⚠️ Audio blocked, using browser TTS", err);
-          speakWithBrowserTTS(data.reply);
-        }
-      } else if (data.reply) {
-        speakWithBrowserTTS(data.reply);
-      }
+      await playAIAudio(data.audio, mime, data.reply);
     } else if (data.reply) {
       speakWithBrowserTTS(data.reply);
     }
