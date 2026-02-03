@@ -191,6 +191,24 @@ obj.material.map.colorSpace = THREE.SRGBColorSpace;
 obj.material.needsUpdate = true;
 }
 
+// Make likely skin meshes glossier
+if (obj.material && (obj.material.isMeshStandardMaterial || obj.material.isMeshPhysicalMaterial)) {
+  const name = (obj.name || "").toLowerCase();
+  const isSkin = name.includes("skin") || name.includes("face") || name.includes("body") || name.includes("head") || name.includes("arm") || name.includes("leg");
+
+  if (isSkin) {
+    obj.material.roughness = Math.min(obj.material.roughness ?? 0.6, 0.35);
+    obj.material.metalness = Math.max(obj.material.metalness ?? 0.0, 0.05);
+
+    if (obj.material.isMeshPhysicalMaterial) {
+      obj.material.clearcoat = 0.4;
+      obj.material.clearcoatRoughness = 0.2;
+    }
+
+    obj.material.needsUpdate = true;
+  }
+}
+
 if (obj.morphTargetDictionary?.Fcl_MTH_A !== undefined)
 mouthMeshes.push(obj);
 
