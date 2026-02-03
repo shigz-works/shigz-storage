@@ -409,6 +409,7 @@ let audioReady = false;
 let lastReply = ""; // Store for error recovery
 let audioContext = null;
 let lastAudioUrl = null;
+let isUnlockingAudio = false;
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
@@ -461,6 +462,7 @@ async function unlockAudio() {
 
     audioPlayer.src = SILENT_AUDIO;
     audioPlayer.volume = 0.01;
+    isUnlockingAudio = true;
     
     // Load the audio first
     await new Promise((resolve, reject) => {
@@ -473,14 +475,21 @@ async function unlockAudio() {
     audioPlayer.pause();        // ✅ REQUIRED
     audioPlayer.currentTime = 0;
     audioPlayer.volume = 1.0;
+    isUnlockingAudio = false;
+
+    // Ensure unlock doesn't leave avatar in talking state
+    isAvatarTalking = false;
+    stopLipSync();
+    hideSubtitles();
+    resetAvatar();
 
     audioReady = true;
     console.log("🔓 Audio unlocked correctly");
-    resetAvatar();
   } catch (e) {
     console.warn("⚠️ Audio unlock failed", e);
     // Allow playback attempts even if unlock fails
     audioReady = true;
+    isUnlockingAudio = false;
   }
 }
 
@@ -498,6 +507,7 @@ window.addEventListener("touchstart", unlockOnce, true);
 window.addEventListener("keydown", unlockOnce, true);
 
 audioPlayer.onplay = () => {
+  if (isUnlockingAudio) return;
   if (isAvatarTalking) return;
 
   isAvatarTalking = true;
