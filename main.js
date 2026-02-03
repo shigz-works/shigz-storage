@@ -37,7 +37,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.LinearToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.25;
 document.body.appendChild(renderer.domElement);
 
 /* =========================
@@ -137,10 +137,23 @@ micBtn.addEventListener("click", () => {
 /* =========================
   LIGHTING
 ========================= */
-scene.add(new THREE.AmbientLight(0xffffff, 4.0));
-const dirLight = new THREE.DirectionalLight(0xffffff, 11);
-dirLight.position.set(0, 3, 5);
+// Soft cool ambient
+scene.add(new THREE.AmbientLight(0xcfe8ff, 4.8));
+
+// Key light (cooler and brighter)
+const dirLight = new THREE.DirectionalLight(0xd6f0ff, 13.5);
+dirLight.position.set(0, 3.5, 5.5);
 scene.add(dirLight);
+
+// Fill light to soften shadows
+const fillLight = new THREE.DirectionalLight(0xffffff, 4.5);
+fillLight.position.set(-3, 2.5, 2);
+scene.add(fillLight);
+
+// Rim light for a cool edge highlight
+const rimLight = new THREE.DirectionalLight(0xbfe8ff, 3.5);
+rimLight.position.set(0, 2.5, -4);
+scene.add(rimLight);
 
 /* =========================
   IDLE POSE (NO T-POSE)
