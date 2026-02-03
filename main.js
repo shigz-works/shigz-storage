@@ -127,9 +127,6 @@ if (SpeechRecognition) {
 
 micBtn.addEventListener("click", () => {
   if (!recognition) return;
-  if (!audioReady) {
-    unlockAudio();
-  }
   recognition.start();
   console.log("🎙️ Listening...");
 });
@@ -483,19 +480,6 @@ async function unlockAudio() {
   }
 }
 
-// Try to unlock on any user gesture within the iframe
-const unlockOnce = async () => {
-  if (!audioReady) {
-    await unlockAudio();
-  }
-  window.removeEventListener("pointerdown", unlockOnce, true);
-  window.removeEventListener("touchstart", unlockOnce, true);
-  window.removeEventListener("keydown", unlockOnce, true);
-};
-window.addEventListener("pointerdown", unlockOnce, true);
-window.addEventListener("touchstart", unlockOnce, true);
-window.addEventListener("keydown", unlockOnce, true);
-
 audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
 
@@ -562,11 +546,6 @@ window.parent.postMessage(
 ========================= */
 async function sendToAI(text) {
   console.log("➡️ sendToAI:", text);
-
-  // Auto-unlock audio on first use
-  if (!audioReady) {
-    await unlockAudio();
-  }
 
   // 🧠 1️⃣ Store user message
   conversationHistory.push({
