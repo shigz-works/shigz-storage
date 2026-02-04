@@ -116,6 +116,11 @@ subtitleBox.style.cssText = `
   line-height: 1.4;
   font-family: Arial, sans-serif;
   text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
   z-index: 9999;
   display: none;
 `;
@@ -123,7 +128,7 @@ document.body.appendChild(subtitleBox);
 
 function showSubtitles(text) {
   subtitleBox.textContent = text;
-  subtitleBox.style.display = "block";
+  subtitleBox.style.display = "-webkit-box";
 }
 
 function hideSubtitles() {
@@ -384,12 +389,14 @@ resetMouth();
   BROWSER TTS HELPER
 ========================= */
 function speakWithBrowserTTS(text) {
+  pendingSubtitle = "";
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 1.0;
   utterance.pitch = 1.0;
 
   utterance.onstart = () => {
     isAvatarTalking = true;
+    showSubtitles(text);
     startLipSync();
     notifyStorylineSpeechStarted();
   };
@@ -467,6 +474,7 @@ let lastReply = ""; // Store for error recovery
 let audioContext = null;
 let lastAudioUrl = null;
 let isUnlockingAudio = false;
+let pendingSubtitle = "";
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous";
@@ -571,6 +579,10 @@ audioPlayer.onplay = () => {
   if (isAvatarTalking) return;
 
   isAvatarTalking = true;
+  if (pendingSubtitle) {
+    showSubtitles(pendingSubtitle);
+    pendingSubtitle = "";
+  }
   startLipSync();
   notifyStorylineSpeechStarted(); // ✅ NOW SAFE
 };
@@ -666,7 +678,7 @@ async function sendToAI(text) {
     // 🧠 2️⃣ Store AI reply
     if (data.reply) {
       lastReply = data.reply; // Store for error recovery
-      showSubtitles(data.reply);
+      pendingSubtitle = data.reply;
       conversationHistory.push({
         role: "assistant",
         content: data.reply
